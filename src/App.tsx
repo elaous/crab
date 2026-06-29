@@ -4,6 +4,8 @@ import { LeftSidebar } from './components/layout/LeftSidebar'
 import { RightSidebar } from './components/layout/RightSidebar'
 import { StatusBar } from './components/layout/StatusBar'
 import { Viewport } from './components/viewport/Viewport'
+import { ShortcutModal } from './components/overlay/ShortcutModal'
+import { OnboardingOverlay } from './components/overlay/OnboardingOverlay'
 import { useKeyboard } from './hooks/useKeyboard'
 import { useSceneStore } from './store/sceneStore'
 import { loadAutosave, deserialize, autosave, serialize } from './lib/io/sceneSerializer'
@@ -63,6 +65,8 @@ export default function App() {
         <RightSidebar />
       </div>
       <StatusBar />
+      <ShortcutModal />
+      <OnboardingOverlay />
     </div>
   )
 }

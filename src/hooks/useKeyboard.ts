@@ -1,15 +1,20 @@
 import { useEffect } from 'react'
 import { useSceneStore } from '../store/sceneStore'
 import { useToolStore } from '../store/toolStore'
+import { useUIStore } from '../store/uiStore'
 
 export function useKeyboard() {
   const store = useSceneStore()
   const toolStore = useToolStore()
+  const uiStore = useUIStore()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      // Shortcut help
+      if (e.key === '?') { uiStore.setShortcutsOpen(true); return }
 
       const ctrl = e.ctrlKey || e.metaKey
 
@@ -64,5 +69,5 @@ export function useKeyboard() {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [store, toolStore])
+  }, [store, toolStore, uiStore])
 }

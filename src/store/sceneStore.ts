@@ -184,7 +184,6 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   duplicateObjects: (ids) => {
     const { objects } = get()
     const newIds: string[] = []
-    get().pushHistory()
     set(state => {
       const newObjects = new Map(state.objects)
       ids.forEach(id => {
@@ -202,6 +201,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       })
       return { objects: newObjects, selectedIds: new Set(newIds), isDirty: true }
     })
+    get().pushHistory()
     return newIds
   },
 

@@ -6,6 +6,7 @@ import {
 } from '../../lib/io/sceneSerializer'
 import { performBoolean } from '../../lib/csg/BooleanOps'
 import { viewportBus } from '../../lib/viewportBus'
+import { useUIStore } from '../../store/uiStore'
 import type { BooleanOp } from '../../types'
 
 type MenuItem =
@@ -14,6 +15,7 @@ type MenuItem =
 
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const { setShortcutsOpen, setOnboardingOpen } = useUIStore()
   const barRef = useRef<HTMLDivElement>(null)
   const store = useSceneStore()
 
@@ -176,6 +178,14 @@ export function MenuBar() {
           label: store.settings.shadowsEnabled ? 'Disable Shadows' : 'Enable Shadows',
           action: () => { store.updateSettings({ shadowsEnabled: !store.settings.shadowsEnabled }); close() }
         },
+      ],
+    },
+    {
+      id: 'help', label: 'Help', items: [
+        { label: 'Keyboard Shortcuts', shortcut: '?', action: () => { setShortcutsOpen(true); close() } },
+        { label: 'Getting Started', action: () => { setOnboardingOpen(true); close() } },
+        { type: 'sep' as const },
+        { label: 'About CrabCAD', action: () => { alert('CrabCAD — Open-source 3D modeling suite\nBuilt with Three.js, React, TypeScript'); close() } },
       ],
     },
   ]

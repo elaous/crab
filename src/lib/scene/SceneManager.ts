@@ -326,24 +326,35 @@ export class SceneManager {
       const layer = layers.get(obj.layerId)
       const visible = obj.visible && (layer?.visible ?? true)
       const selected = selectedIds.has(id)
+      const geoKey = `${obj.type}|${JSON.stringify(obj.dimensions)}`
 
       if (!this.objectGroups.has(id)) {
         const group = buildMeshGroup(obj, selected)
+        group.userData.geoKey = geoKey
+        group.userData.selected = selected
         this.objectGroups.set(id, group)
         this.scene.add(group)
       } else {
         const group = this.objectGroups.get(id)!
-        const wasSelected = group.children.some(c => c.name.startsWith('sel_'))
-        if (wasSelected !== selected) {
+        const prevGeoKey = group.userData.geoKey as string
+        const wasSelected = group.userData.selected as boolean
+
+        if (prevGeoKey !== geoKey || wasSelected !== selected) {
           this.rebuildGroup(id, obj, selected)
+          const rebuilt = this.objectGroups.get(id)!
+          rebuilt.userData.geoKey = geoKey
+          rebuilt.userData.selected = selected
         } else {
           applyTransform(group, obj)
           group.traverse(child => {
             if (child instanceof THREE.Mesh && child.name.startsWith('mesh_')) {
               const mat = child.material as THREE.MeshStandardMaterial
               mat.color.set(obj.color)
+              mat.roughness = obj.roughness ?? 0.7
+              mat.metalness = obj.metalness ?? 0.1
               mat.opacity = obj.opacity
               mat.transparent = obj.opacity < 1
+              mat.side = obj.opacity < 1 ? THREE.DoubleSide : THREE.FrontSide
             }
           })
         }
