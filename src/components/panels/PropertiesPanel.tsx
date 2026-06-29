@@ -33,7 +33,7 @@ function DimensionsEditor({ obj }: { obj: SceneObject }) {
   const { updateObject } = useSceneStore()
 
   const set = (patch: Partial<typeof obj.dimensions>) =>
-    updateObject(obj.id, { dimensions: { ...obj.dimensions, ...patch } })
+    updateObject(obj.id, { dimensions: { ...obj.dimensions, ...patch } as typeof obj.dimensions })
 
   if (obj.type === 'box') {
     const d = obj.dimensions as BoxDims

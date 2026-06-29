@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
   PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims,
-  ViewMode, ViewPreset, MousePosition3D
+  ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData
 } from '../types'
 
 const DEFAULT_LAYER: Layer = {
@@ -23,7 +23,12 @@ const DEFAULT_SETTINGS: SceneSettings = {
   axesVisible: true,
   displayMode: 'shaded',
   shadowsEnabled: true,
-  outlineEnabled: false,
+  outlineEnabled: true,
+  sobelEnabled: false,
+  aoEnabled: false,
+  sunAzimuth: 45,
+  sunElevation: 60,
+  sunIntensity: 1.2,
 }
 
 const LAYER_COLORS = [
@@ -31,12 +36,13 @@ const LAYER_COLORS = [
   '#fb7185', '#38bdf8', '#4ade80', '#facc15', '#c084fc',
 ]
 
-function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | ConeDims {
+function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | ConeDims | Record<string, never> {
   switch (type) {
     case 'box': return { width: 1, height: 1, depth: 1 }
     case 'sphere': return { radius: 0.5 }
     case 'cylinder': return { radius: 0.5, height: 1 }
     case 'cone': return { radius: 0.5, height: 1 }
+    case 'csg': return {}
   }
 }
 
@@ -76,6 +82,9 @@ interface SceneState {
   updateLayer: (id: string, patch: Partial<Layer>) => void
   setActiveLayer: (id: string) => void
   assignToLayer: (objectIds: string[], layerId: string) => void
+
+  // Boolean operations
+  booleanOp: (idA: string, idB: string, op: BooleanOp, csgData: CSGGeometryData) => void
 
   // Camera snapshots
   addSnapshot: (snap: Omit<CameraSnapshot, 'id'>) => void
@@ -134,6 +143,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       locked: false,
       color: '#60a5fa',
       opacity: 1,
+      roughness: 0.7,
+      metalness: 0.1,
       position: { x: position?.x ?? 0, y: position?.y ?? 0, z: position?.z ?? 0 },
       rotation: { x: 0, y: 0, z: 0 },
       scale: { x: 1, y: 1, z: 1 },
@@ -296,6 +307,44 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         if (obj) objects.set(id, { ...obj, layerId })
       })
       return { objects, isDirty: true }
+    })
+  },
+
+  booleanOp: (idA, idB, op, csgData) => {
+    get().pushHistory()
+    set(state => {
+      const objects = new Map(state.objects)
+      const objA = objects.get(idA)
+      const objB = objects.get(idB)
+      if (!objA || !objB) return {}
+
+      const newId = uuidv4()
+      const opNames = { union: 'Union', subtract: 'Subtract', intersect: 'Intersect' }
+      const newObj: SceneObject = {
+        id: newId,
+        name: `${opNames[op]} (${objA.name}, ${objB.name})`,
+        type: 'csg',
+        layerId: objA.layerId,
+        visible: true,
+        locked: false,
+        color: objA.color,
+        opacity: objA.opacity,
+        roughness: objA.roughness,
+        metalness: objA.metalness,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        dimensions: {},
+        metadata: {},
+        csgData,
+      }
+
+      objects.delete(idA)
+      objects.delete(idB)
+      objects.set(newId, newObj)
+
+      const selectedIds = new Set([newId])
+      return { objects, selectedIds, isDirty: true }
     })
   },
 

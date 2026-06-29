@@ -172,6 +172,18 @@ export function Viewport() {
     managerRef.current?.setSnapSettings(settings.snapEnabled, settings.snapDistance / 100)
   }, [settings.snapEnabled, settings.snapDistance])
 
+  useEffect(() => {
+    managerRef.current?.setSunDirection(settings.sunAzimuth, settings.sunElevation, settings.sunIntensity)
+  }, [settings.sunAzimuth, settings.sunElevation, settings.sunIntensity])
+
+  useEffect(() => {
+    managerRef.current?.setOutline(settings.outlineEnabled)
+  }, [settings.outlineEnabled])
+
+  useEffect(() => {
+    managerRef.current?.setSobel(settings.sobelEnabled)
+  }, [settings.sobelEnabled])
+
   // Handle exact dimension input during push/pull
   const applyExactDim = () => {
     const val = parseFloat(dimInput)

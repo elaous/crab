@@ -5,6 +5,7 @@ import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, V
 import type { ToolMode } from '../../store/toolStore'
 import { buildMeshGroup, applyTransform } from '../geometry/primitives'
 import { SnapEngine } from '../tools/SnapEngine'
+import { PostProcessor } from '../rendering/PostProcessor'
 
 export interface PushPullProgress {
   objectId: string
@@ -56,6 +57,7 @@ export class SceneManager {
   activeCamera: THREE.Camera
   orbitControls: OrbitControls
   transformControls: TransformControls
+  postProcessor: PostProcessor | null = null
   objectGroups: Map<string, THREE.Group> = new Map()
   raycaster = new THREE.Raycaster()
   pointer = new THREE.Vector2()
@@ -71,6 +73,7 @@ export class SceneManager {
   snapEngine = new SnapEngine()
   snapEnabled = true
   gridSize = 0.25
+  outlineEnabled = true
 
   // Push/pull
   private pp: PushPullState = {
@@ -182,6 +185,17 @@ export class SceneManager {
     canvas.addEventListener('contextmenu', this.onContextMenu)
 
     this.resize()
+
+    // Initialize post-processor after renderer and scene are ready
+    const pw = canvas.clientWidth || 800
+    const ph = canvas.clientHeight || 600
+    try {
+      this.postProcessor = new PostProcessor(this.renderer, this.scene, this.perspCamera, pw, ph)
+    } catch {
+      // Post-processing not supported; fall back to basic rendering
+      this.postProcessor = null
+    }
+
     this.startLoop()
   }
 
@@ -217,6 +231,7 @@ export class SceneManager {
     orthoCamera.top = s
     orthoCamera.bottom = -s
     orthoCamera.updateProjectionMatrix()
+    this.postProcessor?.resize(w, h)
   }
 
   startLoop() {
@@ -224,7 +239,11 @@ export class SceneManager {
       if (this._destroyed) return
       this.frameId = requestAnimationFrame(loop)
       this.orbitControls.update()
-      this.renderer.render(this.scene, this.activeCamera)
+      if (this.postProcessor) {
+        this.postProcessor.render()
+      } else {
+        this.renderer.render(this.scene, this.activeCamera)
+      }
     }
     loop()
   }
@@ -333,6 +352,9 @@ export class SceneManager {
       this.transformControls.detach()
       this.tcAttachedId = null
     }
+
+    // Sync outline selection
+    this.syncOutlineSelection(selectedIds)
   }
 
   private rebuildGroup(id: string, obj: SceneObject, selected: boolean) {
@@ -350,6 +372,9 @@ export class SceneManager {
       if (child instanceof THREE.Mesh && child.name.startsWith('mesh_')) {
         const mat = child.material as THREE.MeshStandardMaterial
         mat.wireframe = this.displayMode === 'wireframe'
+        if (this.displayMode === 'rendered') {
+          mat.envMapIntensity = 1.0
+        }
       }
       if (child instanceof THREE.LineSegments && child.name.startsWith('edges_')) {
         child.visible = this.displayMode !== 'wireframe'
@@ -372,10 +397,12 @@ export class SceneManager {
       this.activeCamera = this.perspCamera
       this.orbitControls.object = this.perspCamera
       this.transformControls.camera = this.perspCamera
+      this.postProcessor?.updateCamera(this.perspCamera)
     } else {
       this.activeCamera = this.orthoCamera
       this.orbitControls.object = this.orthoCamera
       this.transformControls.camera = this.orthoCamera
+      this.postProcessor?.updateCamera(this.orthoCamera)
     }
     this.orbitControls.update()
   }
@@ -414,6 +441,39 @@ export class SceneManager {
   setShadows(enabled: boolean) {
     this.renderer.shadowMap.enabled = enabled
     this.sunLight.castShadow = enabled
+  }
+  setOutline(enabled: boolean) {
+    this.outlineEnabled = enabled
+    if (this.postProcessor) {
+      this.postProcessor.outlinePass.enabled = enabled
+    }
+  }
+  setSobel(enabled: boolean) {
+    this.postProcessor?.setSobel(enabled)
+  }
+  setSunDirection(azimuthDeg: number, elevationDeg: number, intensity: number) {
+    const az = THREE.MathUtils.degToRad(azimuthDeg)
+    const el = THREE.MathUtils.degToRad(elevationDeg)
+    const x = Math.cos(el) * Math.sin(az)
+    const y = Math.sin(el)
+    const z = Math.cos(el) * Math.cos(az)
+    this.sunLight.position.set(x * 15, y * 15, z * 15)
+    this.sunLight.intensity = intensity
+  }
+  syncOutlineSelection(selectedIds: Set<string>) {
+    if (!this.postProcessor) return
+    const selected: THREE.Object3D[] = []
+    selectedIds.forEach(id => {
+      const group = this.objectGroups.get(id)
+      if (group) {
+        group.traverse(child => {
+          if (child instanceof THREE.Mesh && child.name.startsWith('mesh_')) {
+            selected.push(child)
+          }
+        })
+      }
+    })
+    this.postProcessor.setSelectedObjects(selected)
   }
 
   frameAll() {

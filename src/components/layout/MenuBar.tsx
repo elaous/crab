@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
+
+type MenuItem =
+  | { type: 'sep' }
+  | { label: string; shortcut?: string; action?: () => void; disabled?: boolean; type?: undefined }
 import { useSceneStore } from '../../store/sceneStore'
 import {
   serialize, deserialize, downloadJSON, downloadSTL,
   loadFromFile, autosave,
 } from '../../lib/io/sceneSerializer'
+import { performBoolean } from '../../lib/csg/BooleanOps'
+import type { BooleanOp } from '../../types'
 
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
@@ -52,7 +58,22 @@ export function MenuBar() {
     close()
   }
 
-  const menus = [
+  const handleBoolean = (op: BooleanOp) => {
+    const ids = Array.from(store.selectedIds)
+    if (ids.length !== 2) return
+    const objA = store.objects.get(ids[0])
+    const objB = store.objects.get(ids[1])
+    if (!objA || !objB) return
+    const csgData = performBoolean(objA, objB, op)
+    if (csgData) {
+      store.booleanOp(ids[0], ids[1], op, csgData)
+    }
+    close()
+  }
+
+  const hasTwoSelected = store.selectedIds.size === 2
+
+  const menus: { id: string; label: string; items: MenuItem[] }[] = [
     {
       id: 'file', label: 'File', items: [
         { label: 'New', shortcut: 'Ctrl+N', action: handleNew },
@@ -81,6 +102,22 @@ export function MenuBar() {
             store.duplicateObjects(Array.from(store.selectedIds))
             close()
           }
+        },
+        { type: 'sep' as const },
+        {
+          label: `Boolean Union${!hasTwoSelected ? ' (select 2)' : ''}`,
+          disabled: !hasTwoSelected,
+          action: () => handleBoolean('union'),
+        },
+        {
+          label: `Boolean Subtract${!hasTwoSelected ? ' (select 2)' : ''}`,
+          disabled: !hasTwoSelected,
+          action: () => handleBoolean('subtract'),
+        },
+        {
+          label: `Boolean Intersect${!hasTwoSelected ? ' (select 2)' : ''}`,
+          disabled: !hasTwoSelected,
+          action: () => handleBoolean('intersect'),
         },
       ],
     },
@@ -147,7 +184,11 @@ export function MenuBar() {
                 item.type === 'sep' ? (
                   <div key={i} className="menu-dropdown-sep" />
                 ) : (
-                  <div key={i} className="menu-dropdown-item" onMouseDown={item.action}>
+                  <div
+                    key={i}
+                    className={`menu-dropdown-item ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    onMouseDown={(!item.disabled && item.action) ? item.action : undefined}
+                  >
                     <span>{item.label}</span>
                     {item.shortcut && <span className="text-slate-500 text-xs ml-4">{item.shortcut}</span>}
                   </div>
