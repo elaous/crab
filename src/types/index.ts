@@ -89,6 +89,21 @@ export interface SceneSettings {
   sunAzimuth: number    // degrees 0-360
   sunElevation: number  // degrees 0-90
   sunIntensity: number  // 0-3
+  sectionEnabled: boolean
+  sectionAxis: 'x' | 'y' | 'z'
+  sectionOffset: number // world units
+}
+
+export type AnnotationType = 'label' | 'dimension'
+
+export interface Annotation {
+  id: string
+  type: AnnotationType
+  text: string
+  position: Vec3
+  to?: Vec3        // end point for dimension annotations
+  color: string
+  fontSize: number
 }
 
 export interface MaterialPreset {
@@ -109,6 +124,7 @@ export interface SceneData {
   layers: Layer[]
   settings: SceneSettings
   snapshots: CameraSnapshot[]
+  annotations: Annotation[]
   createdAt: string
   updatedAt: string
 }

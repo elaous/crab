@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 import { useToolStore } from '../../store/toolStore'
 import { SceneManager } from '../../lib/scene/SceneManager'
+import { viewportBus } from '../../lib/viewportBus'
 import type { MousePosition3D, BoxDims } from '../../types'
 
 interface CtxMenu { visible: boolean; x: number; y: number; targetId: string | null }
@@ -19,10 +20,11 @@ export function Viewport() {
   const store = useSceneStore()
   const toolStore = useToolStore()
   const {
-    objects, layers, selectedIds,
+    objects, layers, selectedIds, annotations,
     viewMode, viewPreset, settings,
     selectObject, deselectAll, setMousePos3D,
     removeObjects, duplicateObjects, updateObject, selectAll,
+    addSnapshot,
   } = store
   const { activeTool, isPushPullDragging, setDimensionDisplay, setIsPushPullDragging } = toolStore
 
@@ -183,6 +185,44 @@ export function Viewport() {
   useEffect(() => {
     managerRef.current?.setSobel(settings.sobelEnabled)
   }, [settings.sobelEnabled])
+
+  useEffect(() => {
+    managerRef.current?.setSectionCut(settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset)
+  }, [settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset])
+
+  useEffect(() => {
+    managerRef.current?.syncAnnotations(annotations)
+  }, [annotations])
+
+  // Viewport bus — handle actions from panels & menu
+  useEffect(() => {
+    const off = viewportBus.on((action) => {
+      const mgr = managerRef.current
+      if (!mgr) return
+      switch (action.type) {
+        case 'exportGLTF':
+          mgr.exportGLTF(action.sceneName)
+          break
+        case 'exportOBJ':
+          mgr.exportOBJ(action.sceneName)
+          break
+        case 'captureImage':
+          action.callback(mgr.captureImage())
+          break
+        case 'saveSnapshot': {
+          const state = mgr.getCameraState()
+          addSnapshot({ ...state, name: action.name })
+          break
+        }
+        case 'restoreSnapshot': {
+          const snap = store.snapshots.find(s => s.id === action.snapshotId)
+          if (snap) mgr.restoreSnapshot(snap)
+          break
+        }
+      }
+    })
+    return off
+  }, [addSnapshot, store.snapshots])
 
   // Handle exact dimension input during push/pull
   const applyExactDim = () => {

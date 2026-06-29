@@ -1,7 +1,10 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
-import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims } from '../../types'
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
+import { OBJExporter } from 'three/addons/exporters/OBJExporter.js'
+import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims, Annotation, CameraSnapshot } from '../../types'
 import type { ToolMode } from '../../store/toolStore'
 import { buildMeshGroup, applyTransform } from '../geometry/primitives'
 import { SnapEngine } from '../tools/SnapEngine'
@@ -74,6 +77,8 @@ export class SceneManager {
   snapEnabled = true
   gridSize = 0.25
   outlineEnabled = true
+  labelRenderer: CSS2DRenderer | null = null
+  annotationLabels: Map<string, CSS2DObject> = new Map()
 
   // Push/pull
   private pp: PushPullState = {
@@ -103,7 +108,7 @@ export class SceneManager {
     this.canvas = canvas
     this.callbacks = callbacks
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -196,6 +201,18 @@ export class SceneManager {
       this.postProcessor = null
     }
 
+    // CSS2D label renderer overlaid on canvas
+    const container = canvas.parentElement
+    if (container) {
+      this.labelRenderer = new CSS2DRenderer()
+      this.labelRenderer.setSize(container.clientWidth, container.clientHeight)
+      this.labelRenderer.domElement.style.position = 'absolute'
+      this.labelRenderer.domElement.style.top = '0'
+      this.labelRenderer.domElement.style.left = '0'
+      this.labelRenderer.domElement.style.pointerEvents = 'none'
+      container.appendChild(this.labelRenderer.domElement)
+    }
+
     this.startLoop()
   }
 
@@ -232,6 +249,7 @@ export class SceneManager {
     orthoCamera.bottom = -s
     orthoCamera.updateProjectionMatrix()
     this.postProcessor?.resize(w, h)
+    this.labelRenderer?.setSize(w, h)
   }
 
   startLoop() {
@@ -244,6 +262,7 @@ export class SceneManager {
       } else {
         this.renderer.render(this.scene, this.activeCamera)
       }
+      this.labelRenderer?.render(this.scene, this.activeCamera)
     }
     loop()
   }
@@ -254,6 +273,7 @@ export class SceneManager {
     this.orbitControls.dispose()
     this.transformControls.dispose()
     this.renderer.dispose()
+    this.labelRenderer?.domElement.remove()
     this.canvas.removeEventListener('pointerdown', this.onPointerDown)
     this.canvas.removeEventListener('pointermove', this.onPointerMove)
     this.canvas.removeEventListener('pointerup', this.onPointerUp)
@@ -830,5 +850,120 @@ export class SceneManager {
     else { dims.depth = Math.max(0.01, dims.depth + distance * sign); pos.z += halfDelta * sign }
 
     return { dims, pos }
+  }
+
+  // ─── Section cut ───────────────────────────────────────────────────
+
+  setSectionCut(enabled: boolean, axis: 'x' | 'y' | 'z', offset: number) {
+    if (enabled) {
+      const normal = axis === 'x' ? new THREE.Vector3(-1, 0, 0) :
+                     axis === 'y' ? new THREE.Vector3(0, -1, 0) :
+                                    new THREE.Vector3(0, 0, -1)
+      this.renderer.clippingPlanes = [new THREE.Plane(normal, offset)]
+    } else {
+      this.renderer.clippingPlanes = []
+    }
+  }
+
+  // ─── Camera state ──────────────────────────────────────────────────
+
+  getCameraState(): Omit<CameraSnapshot, 'id' | 'name'> {
+    const cam = this.perspCamera
+    const t = this.orbitControls.target
+    return {
+      preset: 'iso',
+      mode: (this.activeCamera === this.perspCamera ? 'perspective' : 'orthographic') as import('../../types').ViewMode,
+      position: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+      target: { x: t.x, y: t.y, z: t.z },
+      fov: cam.fov,
+      zoom: this.orthoCamera.zoom,
+    }
+  }
+
+  restoreSnapshot(snap: CameraSnapshot) {
+    this.perspCamera.position.set(snap.position.x, snap.position.y, snap.position.z)
+    this.orthoCamera.position.set(snap.position.x, snap.position.y, snap.position.z)
+    this.orbitControls.target.set(snap.target.x, snap.target.y, snap.target.z)
+    if (snap.fov) {
+      this.perspCamera.fov = snap.fov
+      this.perspCamera.updateProjectionMatrix()
+    }
+    this.orbitControls.update()
+  }
+
+  captureImage(): string {
+    if (this.postProcessor) this.postProcessor.render()
+    else this.renderer.render(this.scene, this.activeCamera)
+    return this.renderer.domElement.toDataURL('image/png')
+  }
+
+  // ─── Annotations ──────────────────────────────────────────────────
+
+  syncAnnotations(annotations: Map<string, Annotation>) {
+    // Remove stale labels
+    this.annotationLabels.forEach((label, id) => {
+      if (!annotations.has(id)) {
+        this.scene.remove(label)
+        this.annotationLabels.delete(id)
+      }
+    })
+    // Add / update
+    annotations.forEach((ann, id) => {
+      if (!this.annotationLabels.has(id)) {
+        const el = document.createElement('div')
+        el.style.cssText = `
+          color: ${ann.color};
+          font-size: ${ann.fontSize}px;
+          background: rgba(0,0,0,0.55);
+          padding: 2px 6px;
+          border-radius: 3px;
+          white-space: nowrap;
+          pointer-events: none;
+          font-family: monospace;
+        `
+        el.textContent = ann.text
+        const label = new CSS2DObject(el)
+        label.position.set(ann.position.x, ann.position.y, ann.position.z)
+        this.scene.add(label)
+        this.annotationLabels.set(id, label)
+      } else {
+        const label = this.annotationLabels.get(id)!
+        label.position.set(ann.position.x, ann.position.y, ann.position.z)
+        const el = label.element as HTMLElement
+        el.textContent = ann.text
+        el.style.color = ann.color
+        el.style.fontSize = `${ann.fontSize}px`
+      }
+    })
+  }
+
+  // ─── 3D exports ────────────────────────────────────────────────────
+
+  exportGLTF(sceneName: string) {
+    const group = new THREE.Group()
+    this.objectGroups.forEach(g => group.add(g.clone(true)))
+    const exporter = new GLTFExporter()
+    exporter.parse(group, (result) => {
+      const output = result instanceof ArrayBuffer
+        ? new Blob([result], { type: 'model/gltf-binary' })
+        : new Blob([JSON.stringify(result)], { type: 'model/gltf+json' })
+      const suffix = result instanceof ArrayBuffer ? '.glb' : '.gltf'
+      const url = URL.createObjectURL(output)
+      const a = document.createElement('a')
+      a.href = url; a.download = sceneName + suffix; a.click()
+      URL.revokeObjectURL(url)
+    }, console.error)
+  }
+
+  exportOBJ(sceneName: string) {
+    const group = new THREE.Group()
+    this.objectGroups.forEach(g => group.add(g.clone(true)))
+    const exporter = new OBJExporter()
+    const result = exporter.parse(group)
+    const blob = new Blob([result], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = sceneName + '.obj'; a.click()
+    URL.revokeObjectURL(url)
   }
 }

@@ -3,7 +3,8 @@ import { v4 as uuidv4 } from 'uuid'
 import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
   PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims,
-  ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData
+  ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData,
+  Annotation,
 } from '../types'
 
 const DEFAULT_LAYER: Layer = {
@@ -29,6 +30,9 @@ const DEFAULT_SETTINGS: SceneSettings = {
   sunAzimuth: 45,
   sunElevation: 60,
   sunIntensity: 1.2,
+  sectionEnabled: false,
+  sectionAxis: 'y' as const,
+  sectionOffset: 0,
 }
 
 const LAYER_COLORS = [
@@ -56,6 +60,7 @@ interface SceneState {
   activeLayerId: string
   settings: SceneSettings
   snapshots: CameraSnapshot[]
+  annotations: Map<string, Annotation>
   history: Array<{ objects: Map<string, SceneObject>; layers: Map<string, Layer>; layerOrder: string[] }>
   historyIndex: number
   mousePos3D: MousePosition3D
@@ -86,6 +91,11 @@ interface SceneState {
   // Boolean operations
   booleanOp: (idA: string, idB: string, op: BooleanOp, csgData: CSGGeometryData) => void
 
+  // Annotations
+  addAnnotation: (ann: Omit<Annotation, 'id'>) => string
+  removeAnnotation: (id: string) => void
+  updateAnnotation: (id: string, patch: Partial<Annotation>) => void
+
   // Camera snapshots
   addSnapshot: (snap: Omit<CameraSnapshot, 'id'>) => void
   removeSnapshot: (id: string) => void
@@ -109,7 +119,7 @@ interface SceneState {
   setSceneName: (name: string) => void
   setDirty: (v: boolean) => void
   newScene: () => void
-  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings) => void
+  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[]) => void
 }
 
 let objectCounter = 1
@@ -124,6 +134,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   activeLayerId: 'default',
   settings: DEFAULT_SETTINGS,
   snapshots: [],
+  annotations: new Map(),
   history: [],
   historyIndex: -1,
   mousePos3D: { x: 0, y: 0, z: 0, valid: false },
@@ -348,6 +359,34 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })
   },
 
+  addAnnotation: (ann) => {
+    const id = uuidv4()
+    set(state => {
+      const annotations = new Map(state.annotations)
+      annotations.set(id, { ...ann, id })
+      return { annotations, isDirty: true }
+    })
+    return id
+  },
+
+  removeAnnotation: (id) => {
+    set(state => {
+      const annotations = new Map(state.annotations)
+      annotations.delete(id)
+      return { annotations, isDirty: true }
+    })
+  },
+
+  updateAnnotation: (id, patch) => {
+    set(state => {
+      const annotations = new Map(state.annotations)
+      const ann = annotations.get(id)
+      if (!ann) return {}
+      annotations.set(id, { ...ann, ...patch })
+      return { annotations, isDirty: true }
+    })
+  },
+
   addSnapshot: (snap) => {
     const id = uuidv4()
     set(state => ({ snapshots: [...state.snapshots, { ...snap, id }] }))
@@ -419,19 +458,22 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       selectedIds: new Set(),
       activeLayerId: 'default',
       snapshots: [],
+      annotations: new Map(),
       history: [],
       historyIndex: -1,
     })
   },
 
-  loadScene: (objects, layers, layerOrder, settings) => {
+  loadScene: (objects, layers, layerOrder, settings, annotations) => {
     const objMap = new Map(objects.map(o => [o.id, o]))
     const layerMap = new Map(layers.map(l => [l.id, l]))
+    const annMap = new Map((annotations ?? []).map((a: Annotation) => [a.id, a]))
     set({
       objects: objMap,
       layers: layerMap,
       layerOrder,
       settings,
+      annotations: annMap,
       selectedIds: new Set(),
       history: [],
       historyIndex: -1,

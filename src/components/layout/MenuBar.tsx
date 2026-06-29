@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
+import { useSceneStore } from '../../store/sceneStore'
+import {
+  serialize, deserialize, downloadJSON, downloadSTL, downloadCSV,
+  loadFromFile, autosave,
+} from '../../lib/io/sceneSerializer'
+import { performBoolean } from '../../lib/csg/BooleanOps'
+import { viewportBus } from '../../lib/viewportBus'
+import type { BooleanOp } from '../../types'
 
 type MenuItem =
   | { type: 'sep' }
   | { label: string; shortcut?: string; action?: () => void; disabled?: boolean; type?: undefined }
-import { useSceneStore } from '../../store/sceneStore'
-import {
-  serialize, deserialize, downloadJSON, downloadSTL,
-  loadFromFile, autosave,
-} from '../../lib/io/sceneSerializer'
-import { performBoolean } from '../../lib/csg/BooleanOps'
-import type { BooleanOp } from '../../types'
 
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
@@ -30,7 +31,7 @@ export function MenuBar() {
   const handleSave = () => {
     const data = serialize(
       store.sceneName, store.objects, store.layers,
-      store.layerOrder, store.settings,
+      store.layerOrder, store.settings, store.snapshots, store.annotations,
     )
     downloadJSON(data, store.sceneName)
     autosave(data)
@@ -41,14 +42,29 @@ export function MenuBar() {
   const handleOpen = async () => {
     const data = await loadFromFile()
     if (!data) return
-    const { objects, layers, layerOrder, settings } = deserialize(data)
-    store.loadScene(objects, layers, layerOrder, settings)
+    const { objects, layers, layerOrder, settings, annotations } = deserialize(data)
+    store.loadScene(objects, layers, layerOrder, settings, annotations)
     store.setSceneName(data.name)
     close()
   }
 
   const handleExportSTL = () => {
     downloadSTL(store.objects, store.sceneName)
+    close()
+  }
+
+  const handleExportGLTF = () => {
+    viewportBus.emit({ type: 'exportGLTF', sceneName: store.sceneName })
+    close()
+  }
+
+  const handleExportOBJ = () => {
+    viewportBus.emit({ type: 'exportOBJ', sceneName: store.sceneName })
+    close()
+  }
+
+  const handleExportCSV = () => {
+    downloadCSV(store.objects, store.sceneName)
     close()
   }
 
@@ -81,6 +97,9 @@ export function MenuBar() {
         { type: 'sep' as const },
         { label: 'Save', shortcut: 'Ctrl+S', action: handleSave },
         { label: 'Export STL', action: handleExportSTL },
+        { label: 'Export GLTF', action: handleExportGLTF },
+        { label: 'Export OBJ', action: handleExportOBJ },
+        { label: 'Export CSV (BOM)', action: handleExportCSV },
       ],
     },
     {

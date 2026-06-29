@@ -84,6 +84,56 @@ export function LightingPanel() {
           ))}
         </div>
 
+        <div className="border-t border-slate-700" />
+
+        {/* Section cut */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Section Cut</div>
+          <label className="flex items-center justify-between py-1 cursor-pointer group mb-2">
+            <span className="text-xs text-slate-300 group-hover:text-white">Enable Section</span>
+            <div
+              className={`relative w-8 h-4 rounded-full transition-colors ${settings.sectionEnabled ? 'bg-blue-600' : 'bg-slate-700'}`}
+              onClick={() => updateSettings({ sectionEnabled: !settings.sectionEnabled })}
+            >
+              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform shadow
+                ${settings.sectionEnabled ? 'translate-x-4' : 'translate-x-0.5'}`}
+              />
+            </div>
+          </label>
+
+          {settings.sectionEnabled && (
+            <>
+              <div className="flex gap-1 mb-2">
+                {(['x', 'y', 'z'] as const).map(ax => (
+                  <button
+                    key={ax}
+                    className={`flex-1 text-xs py-1 rounded uppercase font-mono transition-colors
+                      ${settings.sectionAxis === ax
+                        ? 'bg-blue-700 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                    onClick={() => updateSettings({ sectionAxis: ax })}
+                  >
+                    {ax}
+                  </button>
+                ))}
+              </div>
+              <div className="mb-1">
+                <div className="flex justify-between text-xs text-slate-500 mb-1">
+                  <span>Offset</span>
+                  <span className="font-mono">{settings.sectionOffset.toFixed(2)} m</span>
+                </div>
+                <input
+                  type="range"
+                  min={-10} max={10} step={0.05}
+                  value={settings.sectionOffset}
+                  className="w-full accent-blue-500"
+                  onChange={e => updateSettings({ sectionOffset: parseFloat(e.target.value) })}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
       </div>
     </div>
   )
