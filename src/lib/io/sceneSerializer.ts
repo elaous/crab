@@ -1,4 +1,4 @@
-import type { SceneData, SceneObject, Layer, SceneSettings, Annotation, Assembly } from '../../types'
+import type { SceneData, SceneObject, Layer, SceneSettings, Annotation, Assembly, ComponentDef } from '../../types'
 
 const VERSION = '1.0.0'
 
@@ -11,6 +11,7 @@ export function serialize(
   snapshots: import('../../types').CameraSnapshot[] = [],
   annotations: Map<string, Annotation> = new Map(),
   assemblies: Map<string, Assembly> = new Map(),
+  componentDefs: Map<string, ComponentDef> = new Map(),
 ): SceneData {
   return {
     version: VERSION,
@@ -18,6 +19,7 @@ export function serialize(
     objects: Array.from(objects.values()),
     layers: layerOrder.map(id => layers.get(id)!).filter(Boolean),
     assemblies: Array.from(assemblies.values()),
+    componentDefs: Array.from(componentDefs.values()),
     settings,
     snapshots,
     annotations: Array.from(annotations.values()),
@@ -33,6 +35,7 @@ export function deserialize(data: SceneData): {
   settings: SceneSettings
   annotations: Annotation[]
   assemblies: Assembly[]
+  componentDefs: ComponentDef[]
 } {
   return {
     objects: data.objects,
@@ -41,6 +44,7 @@ export function deserialize(data: SceneData): {
     settings: { ...data.settings },
     annotations: data.annotations ?? [],
     assemblies: data.assemblies ?? [],
+    componentDefs: data.componentDefs ?? [],
   }
 }
 

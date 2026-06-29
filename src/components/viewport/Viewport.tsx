@@ -20,7 +20,7 @@ export function Viewport() {
   const store = useSceneStore()
   const toolStore = useToolStore()
   const {
-    objects, layers, selectedIds, annotations,
+    objects, layers, selectedIds, annotations, componentDefs,
     viewMode, viewPreset, settings,
     selectObject, deselectAll, setMousePos3D,
     removeObjects, duplicateObjects, updateObject, selectAll,
@@ -139,8 +139,8 @@ export function Viewport() {
 
   // Sync state changes
   useEffect(() => {
-    managerRef.current?.syncObjects(objects, layers, selectedIds)
-  }, [objects, layers, selectedIds])
+    managerRef.current?.syncObjects(objects, layers, selectedIds, componentDefs)
+  }, [objects, layers, selectedIds, componentDefs])
 
   useEffect(() => {
     managerRef.current?.setTool(activeTool)

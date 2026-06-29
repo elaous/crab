@@ -4,7 +4,7 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js'
-import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims, Annotation, CameraSnapshot } from '../../types'
+import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims, Annotation, CameraSnapshot, ComponentDef } from '../../types'
 import type { ToolMode } from '../../store/toolStore'
 import { buildMeshGroup, applyTransform } from '../geometry/primitives'
 import { SnapEngine } from '../tools/SnapEngine'
@@ -306,6 +306,7 @@ export class SceneManager {
     objects: Map<string, SceneObject>,
     layers: Map<string, { visible: boolean }>,
     selectedIds: Set<string>,
+    componentDefs: Map<string, ComponentDef> = new Map(),
   ) {
     this.selectedIds = selectedIds
 
@@ -326,10 +327,21 @@ export class SceneManager {
       const layer = layers.get(obj.layerId)
       const visible = obj.visible && (layer?.visible ?? true)
       const selected = selectedIds.has(id)
-      const geoKey = `${obj.type}|${JSON.stringify(obj.dimensions)}`
+
+      // For component instances, embed the def's object count in the geoKey so
+      // the group is rebuilt whenever the definition changes.
+      let geoKey: string
+      if (obj.type === 'component-instance' && obj.componentDefId) {
+        const def = componentDefs.get(obj.componentDefId)
+        geoKey = `component-instance|${obj.componentDefId}|${def?.objects.length ?? 0}`
+      } else {
+        geoKey = `${obj.type}|${JSON.stringify(obj.dimensions)}`
+      }
 
       if (!this.objectGroups.has(id)) {
-        const group = buildMeshGroup(obj, selected)
+        const group = obj.type === 'component-instance'
+          ? this.buildInstanceGroup(obj, componentDefs, selected)
+          : buildMeshGroup(obj, selected)
         group.userData.geoKey = geoKey
         group.userData.selected = selected
         this.objectGroups.set(id, group)
@@ -340,10 +352,22 @@ export class SceneManager {
         const wasSelected = group.userData.selected as boolean
 
         if (prevGeoKey !== geoKey || wasSelected !== selected) {
-          this.rebuildGroup(id, obj, selected)
-          const rebuilt = this.objectGroups.get(id)!
-          rebuilt.userData.geoKey = geoKey
-          rebuilt.userData.selected = selected
+          if (obj.type === 'component-instance') {
+            const old = this.objectGroups.get(id)!
+            if (this.tcAttachedId === id) { this.transformControls.detach(); this.tcAttachedId = null }
+            this.scene.remove(old)
+            this.disposeGroup(old)
+            const newGroup = this.buildInstanceGroup(obj, componentDefs, selected)
+            newGroup.userData.geoKey = geoKey
+            newGroup.userData.selected = selected
+            this.objectGroups.set(id, newGroup)
+            this.scene.add(newGroup)
+          } else {
+            this.rebuildGroup(id, obj, selected)
+            const rebuilt = this.objectGroups.get(id)!
+            rebuilt.userData.geoKey = geoKey
+            rebuilt.userData.selected = selected
+          }
         } else {
           applyTransform(group, obj)
           group.traverse(child => {
@@ -386,6 +410,41 @@ export class SceneManager {
 
     // Sync outline selection
     this.syncOutlineSelection(selectedIds)
+  }
+
+  private buildInstanceGroup(obj: SceneObject, componentDefs: Map<string, ComponentDef>, selected: boolean): THREE.Group {
+    const root = new THREE.Group()
+    root.name = `instance_${obj.id}`
+    applyTransform(root, obj)
+
+    const def = obj.componentDefId ? componentDefs.get(obj.componentDefId) : undefined
+    if (def) {
+      def.objects.forEach(relObj => {
+        const child = buildMeshGroup(relObj, false)
+        child.name = `instance_child_${relObj.id}`
+        root.add(child)
+      })
+    } else {
+      // Placeholder box when def is missing
+      const geo = new THREE.BoxGeometry(0.5, 0.5, 0.5)
+      const mat = new THREE.MeshStandardMaterial({ color: obj.color, wireframe: true })
+      root.add(new THREE.Mesh(geo, mat))
+    }
+
+    if (selected) {
+      const bbox = new THREE.Box3().setFromObject(root)
+      const size = new THREE.Vector3(); bbox.getSize(size)
+      const center = new THREE.Vector3(); bbox.getCenter(center)
+      const box = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z)),
+        new THREE.LineBasicMaterial({ color: 0x3b82f6 }),
+      )
+      box.position.copy(center.sub(root.position))
+      box.name = 'sel_instance_box'
+      root.add(box)
+    }
+
+    return root
   }
 
   private rebuildGroup(id: string, obj: SceneObject, selected: boolean) {

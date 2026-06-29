@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 import {
-  serialize, deserialize, downloadJSON, downloadSTL, downloadCSV,
-  loadFromFile, autosave,
+  serialize, deserialize, downloadSTL, downloadCSV, autosave,
 } from '../../lib/io/sceneSerializer'
+import { downloadBinary, loadBinaryFromFile } from '../../lib/io/capnpSerializer'
 import { performBoolean } from '../../lib/csg/BooleanOps'
 import { viewportBus } from '../../lib/viewportBus'
 import { useUIStore } from '../../store/uiStore'
@@ -33,19 +33,19 @@ export function MenuBar() {
   const handleSave = () => {
     const data = serialize(
       store.sceneName, store.objects, store.layers,
-      store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies,
+      store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies, store.componentDefs,
     )
-    downloadJSON(data, store.sceneName)
+    downloadBinary(data, store.sceneName)
     autosave(data)
     store.setDirty(false)
     close()
   }
 
   const handleOpen = async () => {
-    const data = await loadFromFile()
+    const data = await loadBinaryFromFile()
     if (!data) return
-    const { objects, layers, layerOrder, settings, annotations, assemblies } = deserialize(data)
-    store.loadScene(objects, layers, layerOrder, settings, annotations, assemblies)
+    const { objects, layers, layerOrder, settings, annotations, assemblies, componentDefs } = deserialize(data)
+    store.loadScene(objects, layers, layerOrder, settings, annotations, assemblies, componentDefs)
     store.setSceneName(data.name)
     close()
   }
