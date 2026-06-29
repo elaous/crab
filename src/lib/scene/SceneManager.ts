@@ -1,12 +1,50 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D } from '../../types'
+import { TransformControls } from 'three/addons/controls/TransformControls.js'
+import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims } from '../../types'
+import type { ToolMode } from '../../store/toolStore'
 import { buildMeshGroup, applyTransform } from '../geometry/primitives'
+import { SnapEngine } from '../tools/SnapEngine'
+
+export interface PushPullProgress {
+  objectId: string
+  distance: number
+  snapped: boolean
+}
+
+export interface TransformChange {
+  id: string
+  position: Vec3
+  rotation: Vec3
+  scale: Vec3
+}
 
 export type SceneManagerCallbacks = {
   onSelect: (id: string | null, additive: boolean) => void
   onMouseMove3D: (pos: MousePosition3D) => void
   onContextMenu: (x: number, y: number, id: string | null) => void
+  onTransformChange: (change: TransformChange) => void
+  onPushPullProgress: (p: PushPullProgress) => void
+  onPushPullCommit: () => void
+  onBoxSelect: (ids: string[]) => void
+}
+
+interface FaceInfo {
+  objectId: string
+  worldNormal: THREE.Vector3
+  axis: 'x' | 'y' | 'z'
+  sign: number
+  hitPoint: THREE.Vector3
+}
+
+interface PushPullState {
+  active: boolean
+  faceInfo: FaceInfo | null
+  startHitPoint: THREE.Vector3
+  dragPlane: THREE.Plane
+  currentDistance: number
+  originalDims: BoxDims
+  originalPos: Vec3
 }
 
 export class SceneManager {
@@ -16,7 +54,8 @@ export class SceneManager {
   perspCamera: THREE.PerspectiveCamera
   orthoCamera: THREE.OrthographicCamera
   activeCamera: THREE.Camera
-  controls: OrbitControls
+  orbitControls: OrbitControls
+  transformControls: TransformControls
   objectGroups: Map<string, THREE.Group> = new Map()
   raycaster = new THREE.Raycaster()
   pointer = new THREE.Vector2()
@@ -29,17 +68,39 @@ export class SceneManager {
   selectedIds: Set<string> = new Set()
   ambientLight: THREE.AmbientLight
   sunLight: THREE.DirectionalLight
+  snapEngine = new SnapEngine()
+  snapEnabled = true
+  gridSize = 0.25
+
+  // Push/pull
+  private pp: PushPullState = {
+    active: false, faceInfo: null,
+    startHitPoint: new THREE.Vector3(),
+    dragPlane: new THREE.Plane(),
+    currentDistance: 0,
+    originalDims: { width: 1, height: 1, depth: 1 },
+    originalPos: { x: 0, y: 0, z: 0 },
+  }
+  private faceHighlight: THREE.Mesh | null = null
+  private snapIndicator: THREE.Mesh | null = null
+
+  // Tool mode
+  private toolMode: ToolMode = 'select'
+
+  // Box selection
+  private boxSelectStart: { x: number; y: number } | null = null
+  private isBoxSelecting = false
+
+  // Transform controls tracking
+  private tcAttachedId: string | null = null
+
   private _destroyed = false
 
   constructor(canvas: HTMLCanvasElement, callbacks: SceneManagerCallbacks) {
     this.canvas = canvas
     this.callbacks = callbacks
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: false,
-    })
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -56,11 +117,13 @@ export class SceneManager {
     this.orthoCamera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.01, 10000)
     this.orthoCamera.position.set(5, 4, 6)
     this.orthoCamera.lookAt(0, 0, 0)
+    this.orthoCamera.zoom = 80
+    this.orthoCamera.updateProjectionMatrix()
 
     this.activeCamera = this.perspCamera
 
     this.scene = new THREE.Scene()
-    this.scene.fog = new THREE.Fog(0x16213e, 50, 200)
+    this.scene.fog = new THREE.Fog(0x16213e, 80, 300)
 
     this.ambientLight = new THREE.AmbientLight(0xffffff, 0.4)
     this.scene.add(this.ambientLight)
@@ -81,43 +144,69 @@ export class SceneManager {
     fillLight.position.set(-5, 3, -8)
     this.scene.add(fillLight)
 
-    this.grid = new THREE.GridHelper(40, 40, 0x2d3748, 0x1e2a3a)
+    this.grid = new THREE.GridHelper(40, 160, 0x2d3748, 0x1e2a3a)
     this.scene.add(this.grid)
 
     this.axes = new THREE.AxesHelper(3)
     this.scene.add(this.axes)
 
     const groundGeo = new THREE.PlaneGeometry(40, 40)
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.9,
-      metalness: 0,
-    })
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 })
     this.groundPlane = new THREE.Mesh(groundGeo, groundMat)
     this.groundPlane.rotation.x = -Math.PI / 2
     this.groundPlane.receiveShadow = true
     this.groundPlane.name = '__ground__'
     this.scene.add(this.groundPlane)
 
-    this.controls = new OrbitControls(this.perspCamera, canvas)
-    this.controls.enableDamping = true
-    this.controls.dampingFactor = 0.08
-    this.controls.minDistance = 0.5
-    this.controls.maxDistance = 500
-    this.controls.screenSpacePanning = false
+    this.orbitControls = new OrbitControls(this.perspCamera, canvas)
+    this.orbitControls.enableDamping = true
+    this.orbitControls.dampingFactor = 0.08
+    this.orbitControls.minDistance = 0.5
+    this.orbitControls.maxDistance = 500
+    this.orbitControls.screenSpacePanning = false
+
+    // TransformControls for move/rotate/scale
+    this.transformControls = new TransformControls(this.perspCamera, canvas)
+    this.transformControls.setMode('translate')
+    this.transformControls.addEventListener('dragging-changed', (e: { value: unknown }) => {
+      this.orbitControls.enabled = !e.value
+    })
+    this.transformControls.addEventListener('objectChange', () => {
+      this.syncTransformToStore()
+    })
+    this.scene.add(this.transformControls.getHelper())
 
     canvas.addEventListener('pointerdown', this.onPointerDown)
     canvas.addEventListener('pointermove', this.onPointerMove)
+    canvas.addEventListener('pointerup', this.onPointerUp)
     canvas.addEventListener('contextmenu', this.onContextMenu)
 
     this.resize()
     this.startLoop()
   }
 
+  private syncTransformToStore() {
+    const id = this.tcAttachedId
+    if (!id) return
+    const group = this.objectGroups.get(id)
+    if (!group) return
+    this.callbacks.onTransformChange({
+      id,
+      position: { x: group.position.x, y: group.position.y, z: group.position.z },
+      rotation: {
+        x: THREE.MathUtils.radToDeg(group.rotation.x),
+        y: THREE.MathUtils.radToDeg(group.rotation.y),
+        z: THREE.MathUtils.radToDeg(group.rotation.z),
+      },
+      scale: { x: group.scale.x, y: group.scale.y, z: group.scale.z },
+    })
+  }
+
   resize() {
     const { canvas, renderer, perspCamera, orthoCamera } = this
     const w = canvas.clientWidth
     const h = canvas.clientHeight
+    if (!w || !h) return
     renderer.setSize(w, h, false)
     perspCamera.aspect = w / h
     perspCamera.updateProjectionMatrix()
@@ -134,7 +223,7 @@ export class SceneManager {
     const loop = () => {
       if (this._destroyed) return
       this.frameId = requestAnimationFrame(loop)
-      this.controls.update()
+      this.orbitControls.update()
       this.renderer.render(this.scene, this.activeCamera)
     }
     loop()
@@ -143,25 +232,54 @@ export class SceneManager {
   destroy() {
     this._destroyed = true
     cancelAnimationFrame(this.frameId)
-    this.controls.dispose()
+    this.orbitControls.dispose()
+    this.transformControls.dispose()
     this.renderer.dispose()
     this.canvas.removeEventListener('pointerdown', this.onPointerDown)
     this.canvas.removeEventListener('pointermove', this.onPointerMove)
+    this.canvas.removeEventListener('pointerup', this.onPointerUp)
     this.canvas.removeEventListener('contextmenu', this.onContextMenu)
   }
 
-  syncObjects(objects: Map<string, SceneObject>, layers: Map<string, Layer_>, selectedIds: Set<string>) {
+  setTool(mode: ToolMode) {
+    this.toolMode = mode
+    const showTC = mode === 'move' || mode === 'rotate' || mode === 'scale'
+    const tcHelper = this.transformControls.getHelper()
+    tcHelper.visible = showTC
+
+    if (mode === 'move') this.transformControls.setMode('translate')
+    if (mode === 'rotate') this.transformControls.setMode('rotate')
+    if (mode === 'scale') this.transformControls.setMode('scale')
+
+    if (mode === 'pushpull') {
+      this.canvas.style.cursor = 'cell'
+    } else if (mode === 'select') {
+      this.canvas.style.cursor = 'crosshair'
+    } else {
+      this.canvas.style.cursor = 'default'
+    }
+
+    this.clearFaceHighlight()
+    this.pp.active = false
+  }
+
+  syncObjects(
+    objects: Map<string, SceneObject>,
+    layers: Map<string, { visible: boolean }>,
+    selectedIds: Set<string>,
+  ) {
     this.selectedIds = selectedIds
 
-    const currentIds = new Set(this.objectGroups.keys())
     const incomingIds = new Set(objects.keys())
-
-    currentIds.forEach(id => {
+    this.objectGroups.forEach((group, id) => {
       if (!incomingIds.has(id)) {
-        const group = this.objectGroups.get(id)!
         this.scene.remove(group)
         this.disposeGroup(group)
         this.objectGroups.delete(id)
+        if (this.tcAttachedId === id) {
+          this.transformControls.detach()
+          this.tcAttachedId = null
+        }
       }
     })
 
@@ -183,8 +301,10 @@ export class SceneManager {
           applyTransform(group, obj)
           group.traverse(child => {
             if (child instanceof THREE.Mesh && child.name.startsWith('mesh_')) {
-              ;(child.material as THREE.MeshStandardMaterial).color.set(obj.color)
-              ;(child.material as THREE.MeshStandardMaterial).opacity = obj.opacity
+              const mat = child.material as THREE.MeshStandardMaterial
+              mat.color.set(obj.color)
+              mat.opacity = obj.opacity
+              mat.transparent = obj.opacity < 1
             }
           })
         }
@@ -194,10 +314,30 @@ export class SceneManager {
       group.visible = visible
       this.applyDisplayMode(group)
     })
+
+    // Manage TransformControls attachment
+    const showTC = this.toolMode === 'move' || this.toolMode === 'rotate' || this.toolMode === 'scale'
+    if (showTC) {
+      const selArr = Array.from(selectedIds)
+      if (selArr.length === 1) {
+        const group = this.objectGroups.get(selArr[0])
+        if (group && this.tcAttachedId !== selArr[0]) {
+          this.transformControls.attach(group)
+          this.tcAttachedId = selArr[0]
+        }
+      } else {
+        this.transformControls.detach()
+        this.tcAttachedId = null
+      }
+    } else {
+      this.transformControls.detach()
+      this.tcAttachedId = null
+    }
   }
 
   private rebuildGroup(id: string, obj: SceneObject, selected: boolean) {
     const old = this.objectGroups.get(id)!
+    if (this.tcAttachedId === id) { this.transformControls.detach(); this.tcAttachedId = null }
     this.scene.remove(old)
     this.disposeGroup(old)
     const group = buildMeshGroup(obj, selected)
@@ -209,19 +349,7 @@ export class SceneManager {
     group.traverse(child => {
       if (child instanceof THREE.Mesh && child.name.startsWith('mesh_')) {
         const mat = child.material as THREE.MeshStandardMaterial
-        switch (this.displayMode) {
-          case 'wireframe':
-            mat.wireframe = true
-            mat.transparent = false
-            mat.opacity = 1
-            break
-          case 'shaded':
-            mat.wireframe = false
-            break
-          case 'rendered':
-            mat.wireframe = false
-            break
-        }
+        mat.wireframe = this.displayMode === 'wireframe'
       }
       if (child instanceof THREE.LineSegments && child.name.startsWith('edges_')) {
         child.visible = this.displayMode !== 'wireframe'
@@ -233,11 +361,8 @@ export class SceneManager {
     group.traverse(child => {
       if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
         child.geometry.dispose()
-        if (Array.isArray(child.material)) {
-          child.material.forEach(m => m.dispose())
-        } else {
-          child.material.dispose()
-        }
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose())
+        else child.material.dispose()
       }
     })
   }
@@ -245,16 +370,17 @@ export class SceneManager {
   setViewMode(mode: ViewMode) {
     if (mode === 'perspective') {
       this.activeCamera = this.perspCamera
-      this.controls.object = this.perspCamera
+      this.orbitControls.object = this.perspCamera
+      this.transformControls.camera = this.perspCamera
     } else {
       this.activeCamera = this.orthoCamera
-      this.controls.object = this.orthoCamera
+      this.orbitControls.object = this.orthoCamera
+      this.transformControls.camera = this.orthoCamera
     }
-    this.controls.update()
+    this.orbitControls.update()
   }
 
   setViewPreset(preset: ViewPreset) {
-    const cam = this.perspCamera
     const dist = 10
     const targets: Record<ViewPreset, [number, number, number]> = {
       front:  [0, 0, dist],
@@ -266,21 +392,25 @@ export class SceneManager {
       iso:    [dist * 0.6, dist * 0.6, dist * 0.6],
     }
     const [x, y, z] = targets[preset]
-    cam.position.set(x, y, z)
+    this.perspCamera.position.set(x, y, z)
     this.orthoCamera.position.set(x, y, z)
-    cam.lookAt(0, 0, 0)
+    this.perspCamera.lookAt(0, 0, 0)
     this.orthoCamera.lookAt(0, 0, 0)
-    this.controls.target.set(0, 0, 0)
-    this.controls.update()
+    this.orbitControls.target.set(0, 0, 0)
+    this.orbitControls.update()
   }
 
   setDisplayMode(mode: DisplayMode) {
     this.displayMode = mode
-    this.objectGroups.forEach(group => this.applyDisplayMode(group))
+    this.objectGroups.forEach(g => this.applyDisplayMode(g))
   }
 
   setGrid(visible: boolean) { this.grid.visible = visible }
   setAxes(visible: boolean) { this.axes.visible = visible }
+  setSnapSettings(enabled: boolean, gridSize: number) {
+    this.snapEnabled = enabled
+    this.gridSize = gridSize
+  }
   setShadows(enabled: boolean) {
     this.renderer.shadowMap.enabled = enabled
     this.sunLight.castShadow = enabled
@@ -295,18 +425,84 @@ export class SceneManager {
     box.getCenter(center)
     box.getSize(size)
     const maxDim = Math.max(size.x, size.y, size.z)
-    const dist = maxDim * 2
+    const dist = maxDim * 2 + 3
     this.perspCamera.position.set(center.x + dist, center.y + dist * 0.5, center.z + dist)
     this.perspCamera.lookAt(center)
-    this.controls.target.copy(center)
-    this.controls.update()
+    this.orbitControls.target.copy(center)
+    this.orbitControls.update()
   }
 
-  private getPointerNDC(e: PointerEvent) {
-    const rect = this.canvas.getBoundingClientRect()
-    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+  // ─── Push/Pull helpers ────────────────────────────────────────────
+
+  createFaceHighlight(faceInfo: FaceInfo, obj: SceneObject) {
+    this.clearFaceHighlight()
+    if (obj.type !== 'box') return
+
+    const dims = obj.dimensions as BoxDims
+    const { axis, sign, worldNormal } = faceInfo
+
+    let w = 1, h = 1
+    if (axis === 'y') { w = dims.width; h = dims.depth }
+    else if (axis === 'x') { w = dims.depth; h = dims.height }
+    else { w = dims.width; h = dims.height }
+
+    const geo = new THREE.PlaneGeometry(w, h)
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x60a5fa,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide,
+      depthTest: true,
+    })
+    this.faceHighlight = new THREE.Mesh(geo, mat)
+
+    // Position at face center
+    const faceCenter = new THREE.Vector3(obj.position.x, obj.position.y, obj.position.z)
+    if (axis === 'y') faceCenter.y += sign * dims.height / 2
+    else if (axis === 'x') faceCenter.x += sign * dims.width / 2
+    else faceCenter.z += sign * dims.depth / 2
+
+    this.faceHighlight.position.copy(faceCenter)
+    this.faceHighlight.position.addScaledVector(worldNormal, 0.002)
+
+    // Align to face normal
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      worldNormal,
+    )
+    this.faceHighlight.setRotationFromQuaternion(quaternion)
+    this.faceHighlight.renderOrder = 2
+
+    this.scene.add(this.faceHighlight)
   }
+
+  private clearFaceHighlight() {
+    if (this.faceHighlight) {
+      this.scene.remove(this.faceHighlight)
+      this.faceHighlight.geometry.dispose()
+      ;(this.faceHighlight.material as THREE.Material).dispose()
+      this.faceHighlight = null
+    }
+  }
+
+  private showSnapIndicator(point: THREE.Vector3, type: string) {
+    if (!this.snapIndicator) {
+      const geo = new THREE.SphereGeometry(0.06, 8, 8)
+      const mat = new THREE.MeshBasicMaterial({
+        color: type === 'vertex' ? 0x22c55e : type === 'midpoint' ? 0xfbbf24 : 0x60a5fa,
+      })
+      this.snapIndicator = new THREE.Mesh(geo, mat)
+      this.scene.add(this.snapIndicator)
+    }
+    this.snapIndicator.position.copy(point)
+    this.snapIndicator.visible = true
+  }
+
+  private hideSnapIndicator() {
+    if (this.snapIndicator) this.snapIndicator.visible = false
+  }
+
+  // ─── Mesh queries ──────────────────────────────────────────────────
 
   private getMeshes(): THREE.Object3D[] {
     const meshes: THREE.Object3D[] = []
@@ -318,42 +514,261 @@ export class SceneManager {
     return meshes
   }
 
+  private getPointerNDC(e: PointerEvent) {
+    const rect = this.canvas.getBoundingClientRect()
+    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+  }
+
+  private getFaceInfo(hit: THREE.Intersection): FaceInfo | null {
+    if (!hit.face) return null
+    const mesh = hit.object as THREE.Mesh
+    const id = mesh.userData.objectId as string
+    if (!id) return null
+
+    const worldNormal = hit.face.normal.clone()
+      .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
+      .normalize()
+
+    const ax = Math.abs(worldNormal.x)
+    const ay = Math.abs(worldNormal.y)
+    const az = Math.abs(worldNormal.z)
+    const max = Math.max(ax, ay, az)
+    const axis = max === ax ? 'x' : max === ay ? 'y' : 'z'
+    const sign = worldNormal[axis] > 0 ? 1 : -1
+
+    return { objectId: id, worldNormal, axis, sign, hitPoint: hit.point.clone() }
+  }
+
+  // ─── Event handlers ────────────────────────────────────────────────
+
   private onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0) return
     this.getPointerNDC(e)
     this.raycaster.setFromCamera(this.pointer, this.activeCamera)
+
+    if (this.toolMode === 'pushpull') {
+      const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (hits.length > 0) {
+        const faceInfo = this.getFaceInfo(hits[0])
+        if (!faceInfo) return
+
+        // Find the SceneObject for this hit
+        const group = this.objectGroups.get(faceInfo.objectId)
+        if (!group) return
+
+        // We'll rely on the store; just store faceInfo and let the viewport
+        // call beginPushPull with the actual object data
+        this.pp.faceInfo = faceInfo
+        this.pp.startHitPoint = faceInfo.hitPoint.clone()
+        this.pp.currentDistance = 0
+
+        // Build drag plane: normal = cross(faceNormal, cross(cameraDir, faceNormal))
+        const camDir = this.activeCamera.getWorldDirection(new THREE.Vector3())
+        const cross1 = new THREE.Vector3().crossVectors(camDir, faceInfo.worldNormal)
+        const planeNormal = new THREE.Vector3().crossVectors(faceInfo.worldNormal, cross1).normalize()
+        if (planeNormal.lengthSq() < 0.0001) {
+          planeNormal.copy(camDir)
+        }
+        this.pp.dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, faceInfo.hitPoint)
+
+        this.canvas.setPointerCapture(e.pointerId)
+        this.orbitControls.enabled = false
+
+        // Signal push/pull started
+        this.callbacks.onSelect(faceInfo.objectId, false)
+        return
+      }
+      return
+    }
+
+    // Box selection tracking
+    if (this.toolMode === 'select') {
+      const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (hits.length === 0) {
+        const rect = this.canvas.getBoundingClientRect()
+        this.boxSelectStart = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+        this.isBoxSelecting = false
+        this.canvas.setPointerCapture(e.pointerId)
+        return
+      }
+    }
+
+    // Normal select
     const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
     const additive = e.ctrlKey || e.metaKey || e.shiftKey
     if (hits.length > 0) {
-      const mesh = hits[0].object
-      const objectId = mesh.userData.objectId as string
-      this.callbacks.onSelect(objectId, additive)
-    } else {
-      if (!additive) this.callbacks.onSelect(null, false)
+      this.callbacks.onSelect(hits[0].object.userData.objectId as string, additive)
+    } else if (!additive) {
+      this.callbacks.onSelect(null, false)
     }
   }
 
   private onPointerMove = (e: PointerEvent) => {
     this.getPointerNDC(e)
     this.raycaster.setFromCamera(this.pointer, this.activeCamera)
-    const hits = this.raycaster.intersectObject(this.groundPlane, false)
-    if (hits.length > 0) {
-      const pt = hits[0].point
+
+    // Ground plane 3D position
+    const groundHits = this.raycaster.intersectObject(this.groundPlane, false)
+    if (groundHits.length > 0) {
+      const pt = groundHits[0].point
       this.callbacks.onMouseMove3D({ x: pt.x, y: pt.y, z: pt.z, valid: true })
     } else {
       this.callbacks.onMouseMove3D({ x: 0, y: 0, z: 0, valid: false })
     }
+
+    // Push/pull drag
+    if (this.toolMode === 'pushpull' && this.pp.faceInfo && e.buttons === 1) {
+      const newPt = new THREE.Vector3()
+      this.raycaster.ray.intersectPlane(this.pp.dragPlane, newPt)
+      if (newPt.lengthSq() === 0) return
+
+      const rawDist = newPt.sub(this.pp.startHitPoint).dot(this.pp.faceInfo.worldNormal)
+      const snapped = this.snapEngine.snapDistance(rawDist, this.gridSize, this.snapEnabled)
+
+      this.pp.currentDistance = snapped
+
+      if (Math.abs(snapped) > 0.001) {
+        this.callbacks.onPushPullProgress({
+          objectId: this.pp.faceInfo.objectId,
+          distance: snapped,
+          snapped: this.snapEnabled,
+        })
+      }
+
+      // Show snap indicator at the extrusion endpoint
+      const indicator = this.pp.startHitPoint.clone().addScaledVector(
+        this.pp.faceInfo.worldNormal,
+        snapped,
+      )
+      this.showSnapIndicator(indicator, 'vertex')
+      return
+    }
+
+    // Face hover highlight in push/pull mode
+    if (this.toolMode === 'pushpull' && e.buttons === 0) {
+      const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (hits.length > 0 && hits[0].face) {
+        // lightweight highlight - just show indicator at hit
+        this.showSnapIndicator(hits[0].point, 'vertex')
+      } else {
+        this.hideSnapIndicator()
+      }
+    } else if (this.toolMode !== 'pushpull') {
+      this.hideSnapIndicator()
+    }
+
+    // Box selection drag
+    if (this.toolMode === 'select' && this.boxSelectStart && e.buttons === 1) {
+      const rect = this.canvas.getBoundingClientRect()
+      const cur = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      const dx = cur.x - this.boxSelectStart.x
+      const dy = cur.y - this.boxSelectStart.y
+      if (Math.hypot(dx, dy) > 4) {
+        this.isBoxSelecting = true
+        // Notify viewport for overlay rendering via a custom event
+        this.canvas.dispatchEvent(new CustomEvent('boxselect', {
+          detail: { start: this.boxSelectStart, end: cur },
+          bubbles: false,
+        }))
+      }
+    }
+  }
+
+  private onPointerUp = (e: PointerEvent) => {
+    // Commit push/pull
+    if (this.toolMode === 'pushpull' && this.pp.faceInfo) {
+      this.orbitControls.enabled = true
+      this.clearFaceHighlight()
+      this.hideSnapIndicator()
+      if (Math.abs(this.pp.currentDistance) > 0.001) {
+        this.callbacks.onPushPullCommit()
+      }
+      this.pp.faceInfo = null
+      this.pp.active = false
+      this.canvas.releasePointerCapture(e.pointerId)
+      return
+    }
+
+    // Finish box selection
+    if (this.toolMode === 'select' && this.isBoxSelecting && this.boxSelectStart) {
+      const rect = this.canvas.getBoundingClientRect()
+      const end = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      this.commitBoxSelect(this.boxSelectStart, end, rect)
+      this.boxSelectStart = null
+      this.isBoxSelecting = false
+      this.canvas.dispatchEvent(new CustomEvent('boxselectend', { bubbles: false }))
+      this.canvas.releasePointerCapture(e.pointerId)
+      return
+    }
+
+    this.boxSelectStart = null
+    this.isBoxSelecting = false
+  }
+
+  private commitBoxSelect(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    canvasRect: DOMRect,
+  ) {
+    const minX = Math.min(start.x, end.x) / canvasRect.width
+    const maxX = Math.max(start.x, end.x) / canvasRect.width
+    const minY = Math.min(start.y, end.y) / canvasRect.height
+    const maxY = Math.max(start.y, end.y) / canvasRect.height
+
+    const selected: string[] = []
+    this.objectGroups.forEach((group, id) => {
+      if (!group.visible) return
+      const box = new THREE.Box3().setFromObject(group)
+      const center = new THREE.Vector3()
+      box.getCenter(center)
+      const ndc = center.clone().project(this.activeCamera)
+      const sx = (ndc.x * 0.5 + 0.5)
+      const sy = (-ndc.y * 0.5 + 0.5)
+      if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) {
+        selected.push(id)
+      }
+    })
+    this.callbacks.onBoxSelect(selected)
   }
 
   private onContextMenu = (e: MouseEvent) => {
     e.preventDefault()
-    this.pointer.x = ((e.clientX - this.canvas.getBoundingClientRect().left) / this.canvas.clientWidth) * 2 - 1
-    this.pointer.y = -((e.clientY - this.canvas.getBoundingClientRect().top) / this.canvas.clientHeight) * 2 + 1
+    const rect = this.canvas.getBoundingClientRect()
+    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
     this.raycaster.setFromCamera(this.pointer, this.activeCamera)
     const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
     const id = hits.length > 0 ? (hits[0].object.userData.objectId as string) : null
     this.callbacks.onContextMenu(e.clientX, e.clientY, id)
   }
-}
 
-type Layer_ = { visible: boolean }
+  /** Store object data on group for push/pull access */
+  storeObjectOnGroup(id: string, obj: SceneObject) {
+    const group = this.objectGroups.get(id)
+    if (group) group.userData.sceneObject = obj
+  }
+
+  /** Begin push/pull with object data */
+  beginPushPull(obj: SceneObject) {
+    if (!this.pp.faceInfo || this.pp.faceInfo.objectId !== obj.id) return
+    this.pp.originalDims = { ...(obj.dimensions as BoxDims) }
+    this.pp.originalPos = { ...obj.position }
+    this.pp.active = true
+  }
+
+  /** Apply current push/pull distance and return updated dims + position */
+  applyPushPull(obj: SceneObject, distance: number): { dims: BoxDims; pos: Vec3 } | null {
+    if (!this.pp.faceInfo) return null
+    const { axis, sign } = this.pp.faceInfo
+    const dims = { ...(obj.dimensions as BoxDims) }
+    const pos = { ...obj.position }
+    const halfDelta = distance / 2
+
+    if (axis === 'y') { dims.height = Math.max(0.01, dims.height + distance * sign); pos.y += halfDelta * sign }
+    else if (axis === 'x') { dims.width = Math.max(0.01, dims.width + distance * sign); pos.x += halfDelta * sign }
+    else { dims.depth = Math.max(0.01, dims.depth + distance * sign); pos.z += halfDelta * sign }
+
+    return { dims, pos }
+  }
+}
