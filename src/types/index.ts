@@ -22,11 +22,19 @@ export interface CSGGeometryData {
   indices: number[]
 }
 
+export interface Assembly {
+  id: string
+  name: string
+  childIds: string[]
+  color: string
+}
+
 export interface SceneObject {
   id: string
   name: string
   type: PrimitiveType
   layerId: string
+  assemblyId?: string
   visible: boolean
   locked: boolean
   color: string
@@ -122,6 +130,7 @@ export interface SceneData {
   name: string
   objects: SceneObject[]
   layers: Layer[]
+  assemblies?: Assembly[]
   settings: SceneSettings
   snapshots: CameraSnapshot[]
   annotations: Annotation[]

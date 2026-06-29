@@ -3,11 +3,13 @@ import { ObjectTree } from '../panels/ObjectTree'
 import { LayerPanel } from '../panels/LayerPanel'
 import { AnnotationPanel } from '../panels/AnnotationPanel'
 import { SnapshotPanel } from '../panels/SnapshotPanel'
+import { AssemblyPanel } from '../panels/AssemblyPanel'
 
-type Tab = 'objects' | 'layers' | 'notes' | 'views'
+type Tab = 'objects' | 'groups' | 'layers' | 'notes' | 'views'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'objects', label: 'Objects' },
+  { id: 'groups', label: 'Groups' },
   { id: 'layers', label: 'Layers' },
   { id: 'notes', label: 'Notes' },
   { id: 'views', label: 'Views' },
@@ -19,11 +21,11 @@ export function LeftSidebar() {
   return (
     <div className="flex flex-col w-52 border-r border-slate-800 bg-slate-900 flex-shrink-0">
       {/* Tabs */}
-      <div className="flex border-b border-slate-800">
+      <div className="flex border-b border-slate-800 overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.id}
-            className={`flex-1 py-1.5 text-xs font-medium transition-colors
+            className={`flex-shrink-0 px-2 py-1.5 text-xs font-medium transition-colors
               ${tab === t.id ? 'text-blue-400 border-b-2 border-blue-400 -mb-px' : 'text-slate-500 hover:text-slate-300'}`}
             onClick={() => setTab(t.id)}
           >
@@ -34,6 +36,7 @@ export function LeftSidebar() {
 
       <div className="flex-1 overflow-hidden">
         {tab === 'objects' && <ObjectTree />}
+        {tab === 'groups' && <AssemblyPanel />}
         {tab === 'layers' && <LayerPanel />}
         {tab === 'notes' && <AnnotationPanel />}
         {tab === 'views' && <SnapshotPanel />}

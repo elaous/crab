@@ -34,6 +34,12 @@ export function useKeyboard() {
         if (ids.length) store.duplicateObjects(ids)
         return
       }
+      if (ctrl && e.key === 'g') {
+        e.preventDefault()
+        const ids = Array.from(store.selectedIds)
+        if (ids.length) store.createAssembly(undefined, ids)
+        return
+      }
       if (e.key === 'Escape') { store.deselectAll(); return }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const ids = Array.from(store.selectedIds)

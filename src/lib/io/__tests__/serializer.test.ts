@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { serialize, deserialize, exportCSV } from '../sceneSerializer'
-import type { SceneObject, Layer, SceneSettings, Annotation } from '../../../types'
+import type { SceneObject, Layer, SceneSettings, Annotation, Assembly } from '../../../types'
 
 const DEFAULT_SETTINGS: SceneSettings = {
   units: 'metric', precision: 3,
@@ -93,6 +93,24 @@ describe('deserialize', () => {
     delete (data as any).annotations
     const result = deserialize(data)
     expect(result.annotations).toEqual([])
+  })
+
+  it('round-trips assemblies', () => {
+    const asm: Assembly = { id: 'g1', name: 'Frame', childIds: ['a', 'b'], color: '#f472b6' }
+    const assemblies = new Map([['g1', asm]])
+    const data = serialize('S', new Map(), new Map([['default', DEFAULT_LAYER]]), ['default'], DEFAULT_SETTINGS, [], new Map(), assemblies)
+    const result = deserialize(data)
+    expect(result.assemblies).toHaveLength(1)
+    expect(result.assemblies[0].name).toBe('Frame')
+    expect(result.assemblies[0].childIds).toEqual(['a', 'b'])
+  })
+
+  it('returns empty assemblies when field missing', () => {
+    const data = serialize('S', new Map(), new Map([['default', DEFAULT_LAYER]]), ['default'], DEFAULT_SETTINGS)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (data as any).assemblies
+    const result = deserialize(data)
+    expect(result.assemblies).toEqual([])
   })
 })
 

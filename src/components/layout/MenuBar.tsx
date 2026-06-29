@@ -33,7 +33,7 @@ export function MenuBar() {
   const handleSave = () => {
     const data = serialize(
       store.sceneName, store.objects, store.layers,
-      store.layerOrder, store.settings, store.snapshots, store.annotations,
+      store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies,
     )
     downloadJSON(data, store.sceneName)
     autosave(data)
@@ -44,8 +44,8 @@ export function MenuBar() {
   const handleOpen = async () => {
     const data = await loadFromFile()
     if (!data) return
-    const { objects, layers, layerOrder, settings, annotations } = deserialize(data)
-    store.loadScene(objects, layers, layerOrder, settings, annotations)
+    const { objects, layers, layerOrder, settings, annotations, assemblies } = deserialize(data)
+    store.loadScene(objects, layers, layerOrder, settings, annotations, assemblies)
     store.setSceneName(data.name)
     close()
   }
@@ -123,6 +123,25 @@ export function MenuBar() {
             store.duplicateObjects(Array.from(store.selectedIds))
             close()
           }
+        },
+        { type: 'sep' as const },
+        {
+          label: 'Group Selected',
+          shortcut: 'Ctrl+G',
+          disabled: store.selectedIds.size === 0,
+          action: () => {
+            if (store.selectedIds.size > 0) store.createAssembly(undefined, [...store.selectedIds])
+            close()
+          },
+        },
+        {
+          label: 'Ungroup',
+          disabled: store.selectedIds.size === 0,
+          action: () => {
+            const obj = store.objects.get([...store.selectedIds][0])
+            if (obj?.assemblyId) store.dissolveAssembly(obj.assemblyId)
+            close()
+          },
         },
         { type: 'sep' as const },
         {

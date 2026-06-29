@@ -18,7 +18,7 @@ export default function App() {
   useEffect(() => {
     const id = setInterval(() => {
       if (store.isDirty) {
-        const data = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations)
+        const data = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies)
         autosave(data)
       }
     }, 30_000)
@@ -29,8 +29,8 @@ export default function App() {
   useEffect(() => {
     const saved = loadAutosave()
     if (saved) {
-      const { objects, layers, layerOrder, settings, annotations } = deserialize(saved)
-      store.loadScene(objects, layers, layerOrder, settings, annotations)
+      const { objects, layers, layerOrder, settings, annotations, assemblies } = deserialize(saved)
+      store.loadScene(objects, layers, layerOrder, settings, annotations, assemblies)
       store.setSceneName(saved.name)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -40,7 +40,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        const data = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations)
+        const data = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies)
         autosave(data)
         store.setDirty(false)
       }

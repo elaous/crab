@@ -4,7 +4,7 @@ import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
   PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims,
   ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData,
-  Annotation,
+  Annotation, Assembly,
 } from '../types'
 
 const DEFAULT_LAYER: Layer = {
@@ -56,6 +56,8 @@ interface SceneState {
   objects: Map<string, SceneObject>
   layers: Map<string, Layer>
   layerOrder: string[]
+  assemblies: Map<string, Assembly>
+  assemblyOrder: string[]
   selectedIds: Set<string>
   activeLayerId: string
   settings: SceneSettings
@@ -91,6 +93,15 @@ interface SceneState {
   // Boolean operations
   booleanOp: (idA: string, idB: string, op: BooleanOp, csgData: CSGGeometryData) => void
 
+  // Assemblies
+  createAssembly: (name?: string, objectIds?: string[]) => string
+  dissolveAssembly: (id: string) => void
+  renameAssembly: (id: string, name: string) => void
+  addToAssembly: (assemblyId: string, objectIds: string[]) => void
+  removeFromAssembly: (assemblyId: string, objectIds: string[]) => void
+  selectAssemblyObjects: (assemblyId: string) => void
+  moveAssembly: (assemblyId: string, delta: Vec3) => void
+
   // Annotations
   addAnnotation: (ann: Omit<Annotation, 'id'>) => string
   removeAnnotation: (id: string) => void
@@ -119,10 +130,16 @@ interface SceneState {
   setSceneName: (name: string) => void
   setDirty: (v: boolean) => void
   newScene: () => void
-  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[]) => void
+  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[], assemblies?: Assembly[]) => void
 }
 
 let objectCounter = 1
+
+const ASSEMBLY_COLORS = [
+  '#f472b6', '#a78bfa', '#34d399', '#fb923c', '#38bdf8', '#facc15',
+]
+
+let assemblyCounter = 1
 
 export const useSceneStore = create<SceneState>((set, get) => ({
   sceneName: 'Untitled',
@@ -130,6 +147,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   objects: new Map(),
   layers: new Map([['default', DEFAULT_LAYER]]),
   layerOrder: ['default'],
+  assemblies: new Map(),
+  assemblyOrder: [],
   selectedIds: new Set(),
   activeLayerId: 'default',
   settings: DEFAULT_SETTINGS,
@@ -359,6 +378,123 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })
   },
 
+  createAssembly: (name, objectIds = []) => {
+    const id = uuidv4()
+    const { assemblyOrder } = get()
+    const color = ASSEMBLY_COLORS[assemblyCounter % ASSEMBLY_COLORS.length]
+    const assembly: Assembly = {
+      id,
+      name: name ?? `Group ${assemblyCounter++}`,
+      childIds: [...objectIds],
+      color,
+    }
+    set(state => {
+      const assemblies = new Map(state.assemblies)
+      assemblies.set(id, assembly)
+      const objects = new Map(state.objects)
+      objectIds.forEach(oid => {
+        const obj = objects.get(oid)
+        if (obj) objects.set(oid, { ...obj, assemblyId: id })
+      })
+      return { assemblies, assemblyOrder: [...state.assemblyOrder, id], objects, isDirty: true }
+    })
+    void assemblyOrder
+    return id
+  },
+
+  dissolveAssembly: (id) => {
+    set(state => {
+      const assemblies = new Map(state.assemblies)
+      const assembly = assemblies.get(id)
+      if (!assembly) return {}
+      assemblies.delete(id)
+      const objects = new Map(state.objects)
+      assembly.childIds.forEach(oid => {
+        const obj = objects.get(oid)
+        if (obj) objects.set(oid, { ...obj, assemblyId: undefined })
+      })
+      return {
+        assemblies,
+        assemblyOrder: state.assemblyOrder.filter(a => a !== id),
+        objects,
+        isDirty: true,
+      }
+    })
+  },
+
+  renameAssembly: (id, name) => {
+    set(state => {
+      const assemblies = new Map(state.assemblies)
+      const assembly = assemblies.get(id)
+      if (!assembly) return {}
+      assemblies.set(id, { ...assembly, name })
+      return { assemblies, isDirty: true }
+    })
+  },
+
+  addToAssembly: (assemblyId, objectIds) => {
+    set(state => {
+      const assemblies = new Map(state.assemblies)
+      const assembly = assemblies.get(assemblyId)
+      if (!assembly) return {}
+      const newChildIds = [...new Set([...assembly.childIds, ...objectIds])]
+      assemblies.set(assemblyId, { ...assembly, childIds: newChildIds })
+      const objects = new Map(state.objects)
+      objectIds.forEach(oid => {
+        const obj = objects.get(oid)
+        if (obj) objects.set(oid, { ...obj, assemblyId })
+      })
+      return { assemblies, objects, isDirty: true }
+    })
+  },
+
+  removeFromAssembly: (assemblyId, objectIds) => {
+    set(state => {
+      const assemblies = new Map(state.assemblies)
+      const assembly = assemblies.get(assemblyId)
+      if (!assembly) return {}
+      const removeSet = new Set(objectIds)
+      assemblies.set(assemblyId, {
+        ...assembly,
+        childIds: assembly.childIds.filter(id => !removeSet.has(id)),
+      })
+      const objects = new Map(state.objects)
+      objectIds.forEach(oid => {
+        const obj = objects.get(oid)
+        if (obj?.assemblyId === assemblyId) objects.set(oid, { ...obj, assemblyId: undefined })
+      })
+      return { assemblies, objects, isDirty: true }
+    })
+  },
+
+  selectAssemblyObjects: (assemblyId) => {
+    const assembly = get().assemblies.get(assemblyId)
+    if (!assembly) return
+    set({ selectedIds: new Set(assembly.childIds) })
+  },
+
+  moveAssembly: (assemblyId, delta) => {
+    const assembly = get().assemblies.get(assemblyId)
+    if (!assembly) return
+    get().pushHistory()
+    set(state => {
+      const objects = new Map(state.objects)
+      assembly.childIds.forEach(oid => {
+        const obj = objects.get(oid)
+        if (!obj) return
+        objects.set(oid, {
+          ...obj,
+          position: {
+            x: obj.position.x + delta.x,
+            y: obj.position.y + delta.y,
+            z: obj.position.z + delta.z,
+          },
+        })
+      })
+      return { objects, isDirty: true }
+    })
+  },
+
   addAnnotation: (ann) => {
     const id = uuidv4()
     set(state => {
@@ -449,12 +585,15 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
   newScene: () => {
     objectCounter = 1
+    assemblyCounter = 1
     set({
       sceneName: 'Untitled',
       isDirty: false,
       objects: new Map(),
       layers: new Map([['default', DEFAULT_LAYER]]),
       layerOrder: ['default'],
+      assemblies: new Map(),
+      assemblyOrder: [],
       selectedIds: new Set(),
       activeLayerId: 'default',
       snapshots: [],
@@ -464,16 +603,20 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })
   },
 
-  loadScene: (objects, layers, layerOrder, settings, annotations) => {
+  loadScene: (objects, layers, layerOrder, settings, annotations, assemblies) => {
     const objMap = new Map(objects.map(o => [o.id, o]))
     const layerMap = new Map(layers.map(l => [l.id, l]))
     const annMap = new Map((annotations ?? []).map((a: Annotation) => [a.id, a]))
+    const asmList = assemblies ?? []
+    const asmMap = new Map(asmList.map((a: Assembly) => [a.id, a]))
     set({
       objects: objMap,
       layers: layerMap,
       layerOrder,
       settings,
       annotations: annMap,
+      assemblies: asmMap,
+      assemblyOrder: asmList.map((a: Assembly) => a.id),
       selectedIds: new Set(),
       history: [],
       historyIndex: -1,
