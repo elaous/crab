@@ -1,4 +1,4 @@
-export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone'
+export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'csg'
 
 export type ViewMode = 'perspective' | 'orthographic'
 
@@ -8,10 +8,25 @@ export type DisplayMode = 'wireframe' | 'shaded' | 'rendered'
 
 export type ToolMode = 'select' | 'move' | 'rotate' | 'scale'
 
+export type BooleanOp = 'union' | 'subtract' | 'intersect'
+
 export interface Vec3 {
   x: number
   y: number
   z: number
+}
+
+export interface CSGGeometryData {
+  positions: number[]
+  normals: number[]
+  indices: number[]
+}
+
+export interface Assembly {
+  id: string
+  name: string
+  childIds: string[]
+  color: string
 }
 
 export interface SceneObject {
@@ -19,15 +34,20 @@ export interface SceneObject {
   name: string
   type: PrimitiveType
   layerId: string
+  assemblyId?: string
   visible: boolean
   locked: boolean
   color: string
   opacity: number
+  roughness: number
+  metalness: number
+  materialPresetId?: string
   position: Vec3
   rotation: Vec3
   scale: Vec3
-  dimensions: BoxDims | SphereDims | CylinderDims | ConeDims
+  dimensions: BoxDims | SphereDims | CylinderDims | ConeDims | Record<string, never>
   metadata: ObjectMetadata
+  csgData?: CSGGeometryData
 }
 
 export interface BoxDims { width: number; height: number; depth: number }
@@ -72,6 +92,37 @@ export interface SceneSettings {
   displayMode: DisplayMode
   shadowsEnabled: boolean
   outlineEnabled: boolean
+  sobelEnabled: boolean
+  aoEnabled: boolean
+  sunAzimuth: number    // degrees 0-360
+  sunElevation: number  // degrees 0-90
+  sunIntensity: number  // 0-3
+  sectionEnabled: boolean
+  sectionAxis: 'x' | 'y' | 'z'
+  sectionOffset: number // world units
+}
+
+export type AnnotationType = 'label' | 'dimension'
+
+export interface Annotation {
+  id: string
+  type: AnnotationType
+  text: string
+  position: Vec3
+  to?: Vec3        // end point for dimension annotations
+  color: string
+  fontSize: number
+}
+
+export interface MaterialPreset {
+  id: string
+  name: string
+  category: string
+  color: string
+  roughness: number
+  metalness: number
+  opacity: number
+  icon?: string
 }
 
 export interface SceneData {
@@ -79,17 +130,12 @@ export interface SceneData {
   name: string
   objects: SceneObject[]
   layers: Layer[]
+  assemblies?: Assembly[]
   settings: SceneSettings
   snapshots: CameraSnapshot[]
+  annotations: Annotation[]
   createdAt: string
   updatedAt: string
-}
-
-export interface ContextMenuState {
-  visible: boolean
-  x: number
-  y: number
-  targetId: string | null
 }
 
 export interface MousePosition3D {
