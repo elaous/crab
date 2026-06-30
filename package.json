@@ -19,6 +19,7 @@
     "electron:build:win": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --win",
     "electron:build:mac": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --mac",
     "electron:build:linux": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --linux",
+    "capnp:gen": "npx capnp-es src/lib/io/scene.capnp -ots && rm -f src/lib/io/scene.js",
     "publish:sdk": "cd sdk && npm publish"
   },
   "build": {
@@ -76,6 +77,7 @@
     "@types/three": "^0.185.0",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.5.2",
+    "capnp-es": "^0.0.14",
     "capnp-ts": "^0.7.0",
     "capnpc-ts": "^0.7.0",
     "hotkeys-js": "^4.0.4",
