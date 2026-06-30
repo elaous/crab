@@ -120,9 +120,18 @@ src/
 
 ### Platform
 - [x] Plugin system — sandboxed Web Worker plugins with `api.scene.*` surface, `registerTool()`, `log()`; built-in examples; install from file
-- [ ] SDK — TypeScript SDK for building plugins and integrations; published as an npm package
+- [ ] SDK — TypeScript SDK (`@crabcad/sdk`) for building plugins and integrations; `definePlugin()` helper with full type safety; published as an npm package
 - [x] Versioning — named scene checkpoints (`Ctrl+Shift+S`), diff view (added/removed/modified), restore with undo safety
 - [x] Electron app — desktop wrapper with native file dialogs (save/open via OS dialog), native app menu, cross-platform builds (dmg/nsis/AppImage) via electron-builder
+- [ ] Universal updater — auto-update across Electron and future desktop targets; designed to be shared across multiple apps (architecture TBD)
+- [ ] SketchUp importer — parse `.skp` files and convert geometry + materials into the CrabCAD scene graph
+- [ ] Material & component library — shared library of PBR materials and reusable component definitions; cloud-synced or self-hosted
+- [ ] Line styles — parallel, dashed, dotted, chain; configurable width and spacing per edge group
+- [ ] Section view — named cross-section cuts along any axis or custom plane, exportable as 2D drawings
+
+### Modeling (future)
+- [ ] Agentic drawing — natural-language scene generation with a pluggable LLM backend; OpenLlama as the default open-source model; bring your own API key or local inference server
+- [ ] Rename project — current working title "CrabCAD"; candidates: **Forja** (forge, strong creative connotation), **Facet** (geometric, minimal), **Chisel** (precise tool metaphor), **Lattice** (structural, architectural), **Manifold** (mathematical 3D term); to be decided
 
 ### Collaboration
 - [x] Real-time collaboration — multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
