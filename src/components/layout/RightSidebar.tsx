@@ -14,14 +14,16 @@ import { SolidInspectorPanel } from '../panels/SolidInspectorPanel'
 import { MapPanel } from '../panels/MapPanel'
 import { UVPanel } from '../panels/UVPanel'
 import { CollabHistoryPanel } from '../panels/CollabHistoryPanel'
+import { SmoothingPanel } from '../panels/SmoothingPanel'
 
-type Tab = 'tools' | 'properties' | 'materials' | 'uv' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog' | 'bom' | 'layout2d' | 'solid' | 'map' | 'log'
+type Tab = 'tools' | 'properties' | 'materials' | 'uv' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog' | 'bom' | 'layout2d' | 'solid' | 'map' | 'log' | 'smooth'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'tools', label: 'Tools' },
   { id: 'properties', label: 'Props' },
   { id: 'materials', label: 'Mats' },
   { id: 'uv', label: 'UV' },
+  { id: 'smooth', label: 'Smooth' },
   { id: 'lighting', label: 'Light' },
   { id: 'params', label: 'Params' },
   { id: 'styles', label: 'Styles' },
@@ -67,6 +69,7 @@ export function RightSidebar() {
         {tab === 'bom' && <BOMPanel />}
         {tab === 'layout2d' && <Layout2DPanel />}
         {tab === 'uv' && <UVPanel />}
+        {tab === 'smooth' && <SmoothingPanel />}
         {tab === 'solid' && <SolidInspectorPanel />}
         {tab === 'map' && <MapPanel />}
         {tab === 'log' && <CollabHistoryPanel />}
