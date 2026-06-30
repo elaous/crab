@@ -114,9 +114,9 @@ src/
 
 ### Near-term
 - [x] Rendering upgrades — tone mapping (ACES/Reinhard/Cineon/Linear), bloom, environment presets (Studio/Outdoor/Sunset/City), background color; HDRI file import and path tracing remain
-- [ ] Styles — viewport rendering styles (edge display, face modes, sketchy lines, watermarks, background gradients)
-- [ ] Parametric modeling — formula-driven dimensions, constraint fields
-- [ ] Configuration system — user preferences, workspace layouts, keybinding overrides
+- [x] Styles — edge overlay, flat shading, x-ray, gradient background, five one-click style presets (Default/Sketchy/Flat/X-Ray/Blueprint)
+- [x] Parametric modeling — named parameters with formula expressions drive object dimensions; ordered dependency chain; safe evaluator with math functions
+- [ ] Configuration system — user preferences persisted to localStorage, preferences modal, export/import config, keybinding overrides
 
 ### Platform
 - [ ] Plugin system — sandboxed JS plugins with a stable API surface for custom tools, importers, and panels
@@ -125,7 +125,9 @@ src/
 - [ ] Electron app — desktop wrapper with native file dialogs, OS integration, and offline-first support
 
 ### Collaboration
-- [ ] Real-time collaboration — multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
+- [x] Real-time collaboration — multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
+- [ ] Self-hosting — Docker image + nginx config for on-premises deployment; no external cloud dependencies
+- [ ] Share & control permissions — invite links, read-only vs editor roles, per-room access control list
 - [ ] Collaboration history — per-user change log, revert to any point
 
 ### Geospatial
