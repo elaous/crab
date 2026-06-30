@@ -31,6 +31,9 @@ export function MenuBar() {
   const [collabOpen, setCollabOpen] = useState(false)
   const [scenePickerOpen, setScenePickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [warehouseOpen, setWarehouseOpen] = useState(false)
+  const [warehouseUrl, setWarehouseUrl] = useState('')
+  const [warehouseLoading, setWarehouseLoading] = useState(false)
   const [roomInput, setRoomInput] = useState(() => randomRoomId())
   const { setShortcutsOpen, setOnboardingOpen, prefsOpen, setPrefsOpen } = useUIStore()
   const barRef = useRef<HTMLDivElement>(null)
@@ -136,6 +139,30 @@ export function MenuBar() {
     }
   }
 
+  const handleWarehouseImport = async () => {
+    if (!warehouseUrl.trim()) return
+    setWarehouseLoading(true)
+    try {
+      // Extract model ID from 3D Warehouse URL or use URL directly as glTF source
+      // 3D Warehouse public share URLs can be fetched as glTF via the official API
+      const url = warehouseUrl.trim()
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? 'glb'
+      const file = new File([blob], `warehouse.${ext}`, { type: blob.type })
+      const objects = await importModel(file)
+      if (objects.length === 0) throw new Error('No geometry found in model.')
+      store.importObjects(objects)
+      setWarehouseOpen(false)
+      setWarehouseUrl('')
+    } catch (e) {
+      alert(`Import failed: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setWarehouseLoading(false)
+    }
+  }
+
   const handleBoolean = (op: BooleanOp) => {
     const ids = Array.from(store.selectedIds)
     if (ids.length !== 2) return
@@ -156,7 +183,8 @@ export function MenuBar() {
       id: 'file', label: 'File', items: [
         { label: 'New', shortcut: 'Ctrl+N', action: handleNew },
         { label: 'Open…', shortcut: 'Ctrl+O', action: handleOpen },
-        { label: 'Import 3D Model / SketchUp…', action: handleImport },
+        { label: 'Import 3D Model / IFC / SketchUp…', action: handleImport },
+        { label: 'Import from 3D Warehouse URL…', action: () => { setWarehouseOpen(true); close() } },
         { type: 'sep' as const },
         { label: 'Save', shortcut: 'Ctrl+S', action: handleSave },
         { label: 'Share…', action: () => { setShareOpen(true); close() } },
@@ -353,6 +381,47 @@ export function MenuBar() {
       {/* Share modal */}
       {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
 
+      {/* 3D Warehouse import modal */}
+      {warehouseOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setWarehouseOpen(false) }}
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-5 w-96 shadow-2xl">
+            <div className="text-sm font-semibold text-white mb-1">Import from 3D Warehouse</div>
+            <div className="text-xs text-slate-500 mb-3">
+              Paste a direct .glb / .gltf URL (e.g. a public 3D Warehouse share link or any hosted model URL).
+            </div>
+            <input
+              className="prop-input w-full mb-3 text-xs font-mono"
+              placeholder="https://…/model.glb"
+              value={warehouseUrl}
+              onChange={e => setWarehouseUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') void handleWarehouseImport() }}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                className={`flex-1 text-xs py-1.5 rounded transition-colors ${
+                  warehouseLoading
+                    ? 'bg-blue-800 text-blue-300 cursor-wait'
+                    : 'bg-blue-700 text-white hover:bg-blue-600'
+                }`}
+                onClick={() => void handleWarehouseImport()}
+                disabled={warehouseLoading}
+              >
+                {warehouseLoading ? 'Importing…' : 'Import'}
+              </button>
+              <button
+                className="text-xs px-3 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                onClick={() => { setWarehouseOpen(false); setWarehouseUrl('') }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Collab modal */}
       {collabOpen && (

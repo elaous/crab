@@ -102,10 +102,28 @@ export async function importOBJ(file: File): Promise<SceneObject[]> {
   })
 }
 
+export async function importIFC(file: File): Promise<SceneObject[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = async e => {
+      try {
+        const text = e.target?.result as string
+        const { parseIFC } = await import('./ifcImporter')
+        resolve(parseIFC(text))
+      } catch (err) {
+        reject(err)
+      }
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(file)
+  })
+}
+
 export async function importModel(file: File): Promise<SceneObject[]> {
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext === 'glb' || ext === 'gltf') return importGLTF(file)
   if (ext === 'obj') return importOBJ(file)
+  if (ext === 'ifc') return importIFC(file)
   if (ext === 'skp') throw new Error(
     'SketchUp .skp files must be exported first.\n\nIn SketchUp: File → Export → 3D Model → .glb or .obj\nThen import that file here.',
   )
@@ -116,7 +134,7 @@ export function openModelFilePicker(): Promise<File | null> {
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.glb,.gltf,.obj,.skp'
+    input.accept = '.glb,.gltf,.obj,.ifc,.skp'
     input.onchange = () => resolve(input.files?.[0] ?? null)
     input.click()
   })

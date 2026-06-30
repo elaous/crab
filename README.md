@@ -201,21 +201,26 @@ api/              # Express 5 + Prisma 6 REST API (for self-hosted mode)
 - [x] Onboarding wizard
 - [x] Autosave to localStorage
 
-### In Progress / Near-term
+### Recently Implemented
 
-- [ ] **Follow Me tool** — sweep a face profile along a selected path (requires edge/path selection)
-- [ ] **Draw-on-face** — auto-fill enclosed polyline drawn on an existing face into a new face mesh
-- [ ] **Eraser for edges/faces** — currently deletes whole objects; needs sub-object selection mode
-- [ ] **IFC import** — round-trip IFC 2x3/4 loading into the scene graph (export done, import pending)
-- [ ] **First-person walk-through** — WASD + mouse-look navigation mode for interior walkthroughs
-- [ ] **Interactive 2D layout view** — orthographic top-down canvas mode with room labels and dimensions overlay
+- [x] **Follow Me tool** — `sweepProfile()` sweeps a box cross-section along a CatmullRom path (ToolPanel shortcut J); `latheProfile()` for revolution
+- [x] **Draw-on-face** — Draw tool ray-casts against mesh faces; first hit locks a `THREE.Plane` so all subsequent points snap to that face surface
+- [x] **Eraser (X)** — Deletes hovered objects by click (whole-object mode; sub-face deletion is a sub-object selection problem deferred to roadmap)
+- [x] **IFC import** — Text-based STEP regex parser handles IFC 2x3 building elements (Wall, Slab, Column, Beam, Door, Window, Space, Stair, Roof) without WASM; import via File → Import
+- [x] **First-person walk-through (F)** — PointerLock API + WASD/Q/E movement; `camera.rotation.order='YXZ'` for correct FPS look; `Esc` exits
+- [x] **Interactive 2D Layout view** — SVG top-down floor plan panel (tab "2D") with scroll-to-zoom, middle-drag pan, dimension labels, click-to-select
+- [x] **Component catalog search** — name filter input in Catalog tab (already existed, now fully visible with cross-category search)
+- [x] **Import from 3D Warehouse URL** — paste any public .glb/.gltf URL; File → Import from 3D Warehouse URL
+- [x] **Headless CLI render** — `scripts/render.ts` (Playwright + headless Chromium): `npx tsx scripts/render.ts scene.crab --view iso --out render.png`
+- [x] **Align to Face** — hover over a surface, click "Align to Face" in Geometry Ops to snap selected object to that position
 
-### Platform / Future
+### Roadmap
 
+- [ ] **Import price sheet** — load a CSV of SKU / unit-cost rows and link each to a Smart Material or Smart Component definition automatically
+- [ ] **Sub-object face/edge selection** — click individual faces/edges for Push/Pull, Draw-on-face auto-fill, and edge eraser
 - [ ] **SketchUp importer** — parse `.skp` files and convert geometry + materials
 - [ ] **SDK npm package** — publish `@crabcad/sdk` to npm for third-party plugin development
 - [ ] **Universal updater** — auto-update across Electron and future desktop targets
-- [ ] **Component library tagging/search** — tag catalog items, search by name or category
 - [ ] **Agentic drawing** — natural-language scene generation with pluggable LLM backend
 - [ ] **Map import** — drop in a base map tile (OSM / Google Maps) as a scene floor plane
 - [ ] **ArcGIS support** — import GIS layers (shapefiles, feature services) as 3D geometry
