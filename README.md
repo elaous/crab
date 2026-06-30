@@ -116,23 +116,204 @@ src/
 - [x] Rendering upgrades — tone mapping (ACES/Reinhard/Cineon/Linear), bloom, environment presets (Studio/Outdoor/Sunset/City), background color; HDRI file import and path tracing remain
 - [x] Styles — edge overlay, flat shading, x-ray, gradient background, five one-click style presets (Default/Sketchy/Flat/X-Ray/Blueprint)
 - [x] Parametric modeling — named parameters with formula expressions drive object dimensions; ordered dependency chain; safe evaluator with math functions
-- [ ] Configuration system — user preferences persisted to localStorage, preferences modal, export/import config, keybinding overrides
+- [x] Configuration system — user preferences persisted to localStorage, preferences modal, export/import config, keybinding overrides
 
 ### Platform
-- [ ] Plugin system — sandboxed JS plugins with a stable API surface for custom tools, importers, and panels
-- [ ] SDK — TypeScript SDK for building plugins and integrations; published as an npm package
-- [ ] Versioning — scene version history with named checkpoints and diff view
-- [ ] Electron app — desktop wrapper with native file dialogs, OS integration, and offline-first support
+- [x] Plugin system — sandboxed Web Worker plugins with `api.scene.*` surface, `registerTool()`, `log()`; built-in examples; install from file
+- [ ] SDK — TypeScript SDK (`@crabcad/sdk`) for building plugins and integrations; `definePlugin()` helper with full type safety; published as an npm package
+- [x] Versioning — named scene checkpoints (`Ctrl+Shift+S`), diff view (added/removed/modified), restore with undo safety
+- [x] Electron app — desktop wrapper with native file dialogs (save/open via OS dialog), native app menu, cross-platform builds (dmg/nsis/AppImage) via electron-builder
+- [ ] Universal updater — auto-update across Electron and future desktop targets; designed to be shared across multiple apps (architecture TBD)
+- [ ] SketchUp importer — parse `.skp` files and convert geometry + materials into the CrabCAD scene graph
+- [ ] Material & component library — shared library of PBR materials and reusable component definitions; cloud-synced or self-hosted
+- [ ] Line styles — parallel, dashed, dotted, chain; configurable width and spacing per edge group
+- [ ] Section view — named cross-section cuts along any axis or custom plane, exportable as 2D drawings
+
+### Modeling (future)
+- [ ] Agentic drawing — natural-language scene generation with a pluggable LLM backend; OpenLlama as the default open-source model; bring your own API key or local inference server
+- [ ] Rename project — current working title "CrabCAD"; candidates: **Forja** (forge, strong creative connotation), **Facet** (geometric, minimal), **Chisel** (precise tool metaphor), **Lattice** (structural, architectural), **Manifold** (mathematical 3D term); to be decided
 
 ### Collaboration
 - [x] Real-time collaboration — multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
-- [ ] Self-hosting — Docker image + nginx config for on-premises deployment; no external cloud dependencies
+- [ ] Self-hosting — Docker Compose (local), Encore, and Crossplane/Minikube deployment targets; storage abstraction (browser localStorage ↔ Prisma-backed database)
 - [ ] Share & control permissions — invite links, read-only vs editor roles, per-room access control list
 - [ ] Collaboration history — per-user change log, revert to any point
 
 ### Geospatial
 - [ ] Map import — drop in a base map tile (Google Maps, Leaflet, OpenStreetMap) as a scene floor plane
 - [ ] ArcGIS support — import GIS layers (shapefiles, feature services) as 3D geometry and metadata
+
+## Self-Hosting
+
+CrabCAD is designed to run entirely in the browser (no server required) and can also be deployed on-premises with a backend for persistent scene storage, multi-user auth, and collaboration relay. Three deployment targets are provided:
+
+### Storage abstraction
+
+| Mode | When to use | Implementation |
+|------|-------------|----------------|
+| `localStore` | Single-user / offline / Electron | Browser localStorage + `.crab` file downloads (default) |
+| `database` | Multi-user / self-hosted | Prisma ORM → PostgreSQL; scenes stored as binary blobs |
+
+The storage adapter is selected at build time via `VITE_STORAGE=local` (default) or `VITE_STORAGE=db`. The `api/` layer exposes the same `saveScene / loadScene / listScenes` interface regardless of backend.
+
+---
+
+### Docker Compose (local)
+
+The simplest self-hosted setup — a single `docker-compose.yml` runs the static frontend behind nginx, a lightweight Node API server, and a PostgreSQL database.
+
+```yaml
+# docker-compose.yml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: crab
+      POSTGRES_PASSWORD: crab
+      POSTGRES_DB: crabcad
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql://crab:crab@db:5432/crabcad
+      VITE_STORAGE: db
+    depends_on: [db]
+    ports: ["3001:3001"]
+
+  web:
+    build: .
+    environment:
+      VITE_API_URL: http://api:3001
+      VITE_STORAGE: db
+    ports: ["8080:80"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+```
+
+```bash
+docker compose up -d
+# App at http://localhost:8080
+```
+
+Schema is managed by Prisma migrations (`api/prisma/schema.prisma`). Run `docker compose exec api npx prisma migrate deploy` on first start.
+
+---
+
+### Encore (managed cloud)
+
+[Encore](https://encore.dev) provides type-safe services with zero-config deployments. The `encore/` directory contains the backend service definition.
+
+```typescript
+// encore/scenes/scenes.ts
+import { api } from "encore.dev/api"
+import { SQLDatabase } from "encore.dev/storage/sqldb"
+
+const db = new SQLDatabase("crabcad", { migrations: "./migrations" })
+
+export const saveScene = api({ method: "POST", path: "/scenes" },
+  async (req: { id: string; name: string; data: string }) => {
+    await db.exec`
+      INSERT INTO scenes (id, name, data, updated_at)
+      VALUES (${req.id}, ${req.name}, ${req.data}, NOW())
+      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
+        data = EXCLUDED.data, updated_at = NOW()
+    `
+    return { ok: true }
+  }
+)
+
+export const loadScene = api({ method: "GET", path: "/scenes/:id" },
+  async ({ id }: { id: string }) => {
+    const row = await db.queryRow`SELECT data FROM scenes WHERE id = ${id}`
+    if (!row) throw new Error("Scene not found")
+    return { data: row.data as string }
+  }
+)
+```
+
+```bash
+# Local development
+encore run
+
+# Deploy to Encore Cloud (or self-hosted Encore runner)
+encore deploy
+```
+
+---
+
+### Crossplane / Minikube (Kubernetes)
+
+For teams running Kubernetes, the `k8s/` directory provides Crossplane composite resource definitions that provision a PostgreSQL instance alongside the CrabCAD deployment.
+
+```yaml
+# k8s/crossplane/crabcad-xrd.yaml
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xcrabcadinstances.crabcad.io
+spec:
+  group: crabcad.io
+  names:
+    kind: XCrabCADInstance
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                storageGB: { type: integer, default: 10 }
+                replicas:  { type: integer, default: 1 }
+```
+
+```yaml
+# k8s/crossplane/composition.yaml  (excerpt)
+resources:
+  - name: postgresql
+    base:
+      apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      spec:
+        instances: 1
+        storage:
+          size: 10Gi
+  - name: crabcad-deployment
+    base:
+      apiVersion: apps/v1
+      kind: Deployment
+      spec:
+        template:
+          spec:
+            containers:
+              - name: api
+                image: ghcr.io/elaous/crab-api:latest
+                env:
+                  - name: VITE_STORAGE
+                    value: db
+```
+
+```bash
+# Local with Minikube
+minikube start
+kubectl apply -f k8s/crossplane/
+
+# Claim an instance
+kubectl apply -f k8s/crossplane/claim.yaml
+```
+
+Full manifests (Deployment, Service, Ingress, ConfigMap, HorizontalPodAutoscaler) are in [`k8s/`](k8s/).
+
+---
+
+> **Note:** The `api/`, `encore/`, and `k8s/` directories and the Prisma schema are planned — the browser-only build works today with no backend required.
 
 ## License
 
