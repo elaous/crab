@@ -4,7 +4,7 @@ import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
   PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims,
   ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData,
-  Annotation, Assembly, ComponentDef, Parameter,
+  Annotation, Assembly, ComponentDef, Parameter, SceneVersion,
 } from '../types'
 import { evaluateFormula } from '../lib/formula/evaluator'
 
@@ -172,6 +172,13 @@ interface SceneState {
   // Remote collaboration sync — bypass history and collab echo
   _remoteSetObject: (id: string, obj: SceneObject) => void
   _remoteDeleteObject: (id: string) => void
+
+  // Versioning
+  versions: SceneVersion[]
+  createVersion: (name?: string) => string
+  restoreVersion: (id: string) => void
+  deleteVersion: (id: string) => void
+  renameVersion: (id: string, name: string) => void
 }
 
 let objectCounter = 1
@@ -232,6 +239,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   annotations: new Map(),
   history: [],
   historyIndex: -1,
+  versions: [],
   mousePos3D: { x: 0, y: 0, z: 0, valid: false },
   viewMode: 'perspective',
   viewPreset: 'iso',
@@ -941,6 +949,51 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   },
 
   getParamContext: () => buildParamContext(get().parameters),
+
+  createVersion: (name) => {
+    const { objects, layers, layerOrder, settings, sceneName, versions } = get()
+    const id = uuidv4()
+    const version: SceneVersion = {
+      id,
+      name: name ?? `v${versions.length + 1} — ${new Date().toLocaleTimeString()}`,
+      createdAt: Date.now(),
+      objectCount: objects.size,
+      objects: Array.from(objects.values()),
+      layers: Array.from(layers.values()),
+      layerOrder: [...layerOrder],
+      settings: { ...settings },
+      sceneName,
+    }
+    set(state => ({ versions: [...state.versions, version] }))
+    return id
+  },
+
+  restoreVersion: (id) => {
+    const version = get().versions.find(v => v.id === id)
+    if (!version) return
+    get().pushHistory()
+    const objMap = new Map(version.objects.map(o => [o.id, o]))
+    const layerMap = new Map(version.layers.map(l => [l.id, l]))
+    set({
+      objects: objMap,
+      layers: layerMap,
+      layerOrder: [...version.layerOrder],
+      settings: { ...version.settings },
+      sceneName: version.sceneName,
+      selectedIds: new Set(),
+      isDirty: true,
+    })
+  },
+
+  deleteVersion: (id) => {
+    set(state => ({ versions: state.versions.filter(v => v.id !== id) }))
+  },
+
+  renameVersion: (id, name) => {
+    set(state => ({
+      versions: state.versions.map(v => v.id === id ? { ...v, name } : v),
+    }))
+  },
 
   _remoteSetObject: (id, obj) => set(state => {
     const objects = new Map(state.objects)

@@ -21,6 +21,13 @@ export function useKeyboard() {
 
       const ctrl = e.ctrlKey || e.metaKey
 
+      // Save version checkpoint
+      if (ctrl && e.shiftKey && e.key === 'S') {
+        e.preventDefault()
+        store.createVersion()
+        return
+      }
+
       // Undo/Redo
       if (ctrl && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault()

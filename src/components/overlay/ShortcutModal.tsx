@@ -37,6 +37,7 @@ const SECTIONS = [
       { key: 'Ctrl+Z', desc: 'Undo' },
       { key: 'Ctrl+Shift+Z', desc: 'Redo' },
       { key: 'Ctrl+S', desc: 'Save' },
+      { key: 'Ctrl+Shift+S', desc: 'Save version checkpoint' },
       { key: 'Ctrl+N', desc: 'New scene' },
     ],
   },
