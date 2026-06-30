@@ -1,15 +1,72 @@
 {
   "name": "crab",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "electron:compile": "tsc -p tsconfig.electron.json",
+    "electron:dev": "npm run electron:compile && concurrently -k \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
+    "electron:build": "ELECTRON=true npm run build && npm run electron:compile && electron-builder",
+    "electron:build:win": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --win",
+    "electron:build:mac": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --mac",
+    "electron:build:linux": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --linux"
+  },
+  "build": {
+    "appId": "io.crabcad.app",
+    "productName": "CrabCAD",
+    "copyright": "Copyright © 2025 CrabCAD contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "public"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Graphics"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
@@ -37,10 +94,14 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^9.2.3",
+    "electron": "^42.5.1",
+    "electron-builder": "^26.15.3",
     "jsdom": "^29.1.1",
     "oxlint": "^1.69.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.0",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "wait-on": "^8.0.5"
   }
 }

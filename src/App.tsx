@@ -7,11 +7,13 @@ import { Viewport } from './components/viewport/Viewport'
 import { ShortcutModal } from './components/overlay/ShortcutModal'
 import { OnboardingOverlay } from './components/overlay/OnboardingOverlay'
 import { useKeyboard } from './hooks/useKeyboard'
+import { useElectronMenu } from './hooks/useElectronMenu'
 import { useSceneStore } from './store/sceneStore'
 import { loadAutosave, deserialize, autosave, serialize } from './lib/io/sceneSerializer'
 
 export default function App() {
   useKeyboard()
+  useElectronMenu()
   const store = useSceneStore()
 
   // Auto-save every 30s

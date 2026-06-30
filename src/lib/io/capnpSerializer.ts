@@ -82,21 +82,44 @@ export function deserializeBinary(bytes: Uint8Array): SceneData {
 
 // ─── File download helpers ───────────────────────────────────────────────────
 
-export function downloadBinary(data: SceneData, filename: string) {
+export async function downloadBinary(data: SceneData, filename: string): Promise<void> {
   const bytes = serializeBinary(data)
-  // Copy into a plain ArrayBuffer to satisfy strict Blob typing
+  const name = filename.endsWith('.crab') ? filename : filename + '.crab'
+
+  if (window.electronAPI) {
+    await window.electronAPI.saveFile(name, bytes)
+    return
+  }
+
+  // Browser: trigger a download
   const buf = new ArrayBuffer(bytes.byteLength)
   new Uint8Array(buf).set(bytes)
   const blob = new Blob([buf], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = filename.endsWith('.crab') ? filename : filename + '.crab'
+  a.download = name
   a.click()
   URL.revokeObjectURL(url)
 }
 
 export async function loadBinaryFromFile(): Promise<SceneData | null> {
+  if (window.electronAPI) {
+    const result = await window.electronAPI.openFile()
+    if (!result) return null
+    const bytes = new Uint8Array(result.bytes)
+    try {
+      if (bytes[0] === MAGIC[0] && bytes[1] === MAGIC[1] &&
+          bytes[2] === MAGIC[2] && bytes[3] === MAGIC[3]) {
+        return deserializeBinary(bytes)
+      }
+      return JSON.parse(new TextDecoder().decode(bytes)) as SceneData
+    } catch {
+      alert('Invalid or corrupt CrabCAD file')
+      return null
+    }
+  }
+
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -109,12 +132,10 @@ export async function loadBinaryFromFile(): Promise<SceneData | null> {
       const bytes = new Uint8Array(arrayBuffer)
 
       try {
-        // Detect binary vs legacy JSON by magic bytes
         if (bytes[0] === MAGIC[0] && bytes[1] === MAGIC[1] &&
             bytes[2] === MAGIC[2] && bytes[3] === MAGIC[3]) {
           resolve(deserializeBinary(bytes))
         } else {
-          // Fallback: legacy JSON .crab file
           const text = new TextDecoder().decode(bytes)
           resolve(JSON.parse(text) as SceneData)
         }
