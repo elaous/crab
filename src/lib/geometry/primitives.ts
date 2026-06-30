@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { SceneObject, PrimitiveType, BoxDims, SphereDims, CylinderDims, ConeDims, LineDims, LineStyle } from '../../types'
-import { deserializeGeometry } from '../csg/BooleanOps'
+import { deserializeGeometry } from '../csg/geometry'
 
 const SEGMENTS = 32
 

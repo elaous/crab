@@ -24,7 +24,7 @@ model Share {
   scene      Scene     @relation(fields: [sceneId], references: [id], onDelete: Cascade)
   sceneId    String
   token      String    @unique @default(cuid())
-  permission String    @default("view") // "view" | "edit"
+  permission String    @default("viewer") // "viewer" | "editor" | "owner"
   expiresAt  DateTime?
   createdAt  DateTime  @default(now())
 

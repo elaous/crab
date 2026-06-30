@@ -35,7 +35,7 @@ app.get('/api/public/scenes/:token', async (req: Request, res: Response) => {
   }
   res.setHeader('Content-Type', 'application/octet-stream')
   res.setHeader('X-Scene-Name', encodeURIComponent(share.scene.name))
-  res.setHeader('X-Share-Permission', share.permission)
+  res.setHeader('X-Share-Permission', share.permission)  // viewer | editor | owner
   res.send(share.scene.data)
 })
 

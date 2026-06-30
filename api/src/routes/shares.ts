@@ -20,10 +20,11 @@ sharesRouter.post('/', async (req: Request, res: Response) => {
   const scene = await prisma.scene.findUnique({ where: { id: req.params.sceneId }, select: { id: true } })
   if (!scene) { res.status(404).json({ error: 'Scene not found' }); return }
 
+  const VALID_PERMISSIONS = ['viewer', 'editor', 'owner']
   const share = await prisma.share.create({
     data: {
       sceneId: req.params.sceneId,
-      permission: permission === 'edit' ? 'edit' : 'view',
+      permission: VALID_PERMISSIONS.includes(permission) ? permission : 'viewer',
       expiresAt: expiresAt ? new Date(expiresAt) : null,
     },
     select: { id: true, token: true, permission: true, expiresAt: true, createdAt: true },

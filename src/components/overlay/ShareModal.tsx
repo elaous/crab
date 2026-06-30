@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 
-type Permission = 'view' | 'edit'
+type Permission = 'viewer' | 'editor' | 'owner'
 
 interface ShareEntry {
   id: string
@@ -27,7 +27,7 @@ export function ShareModal({ onClose }: Props) {
   const [shares, setShares] = useState<ShareEntry[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [permission, setPermission] = useState<Permission>('view')
+  const [permission, setPermission] = useState<Permission>('viewer')
   const [copied, setCopied] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isDb = (import.meta.env.VITE_STORAGE as string | undefined) === 'db'
@@ -121,8 +121,9 @@ export function ShareModal({ onClose }: Props) {
               value={permission}
               onChange={e => setPermission(e.target.value as Permission)}
             >
-              <option value="view">View only</option>
-              <option value="edit">Can edit</option>
+              <option value="viewer">Viewer — read only</option>
+              <option value="editor">Editor — can edit</option>
+              <option value="owner">Owner — edit, share, delete</option>
             </select>
             <button
               className="px-3 py-1.5 rounded bg-blue-700 text-white text-xs hover:bg-blue-600 transition-colors whitespace-nowrap"
@@ -159,7 +160,9 @@ export function ShareModal({ onClose }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-                        s.permission === 'edit' ? 'bg-amber-900/50 text-amber-300' : 'bg-slate-700 text-slate-400'
+                        s.permission === 'owner'  ? 'bg-red-900/50 text-red-300'
+                      : s.permission === 'editor' ? 'bg-amber-900/50 text-amber-300'
+                      : 'bg-slate-700 text-slate-400'
                       }`}>{s.permission}</span>
                       <span className="text-xs text-slate-500">
                         {new Date(s.createdAt).toLocaleDateString()}

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg'
 import type { SceneObject, BooleanOp, CSGGeometryData } from '../../types'
 import { createGeometry } from '../geometry/primitives'
+import { serializeGeometry, deserializeGeometry } from './geometry'
 
 const evaluator = new Evaluator()
 evaluator.attributes = ['position', 'normal']
@@ -62,23 +63,4 @@ export function performBoolean(
   }
 }
 
-function serializeGeometry(geo: THREE.BufferGeometry): CSGGeometryData {
-  // Ensure normals exist
-  if (!geo.attributes.normal) geo.computeVertexNormals()
-
-  const positions = Array.from(geo.attributes.position.array as Float32Array)
-  const normals = Array.from(geo.attributes.normal.array as Float32Array)
-  const indices = geo.index
-    ? Array.from(geo.index.array as Uint32Array)
-    : Array.from({ length: positions.length / 3 }, (_, i) => i)
-
-  return { positions, normals, indices }
-}
-
-export function deserializeGeometry(data: CSGGeometryData): THREE.BufferGeometry {
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3))
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(data.normals, 3))
-  if (data.indices.length > 0) geo.setIndex(data.indices)
-  return geo
-}
+export { serializeGeometry, deserializeGeometry }
