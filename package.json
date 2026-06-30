@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist-electron/main.js",
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "msgpackr-extract", "electron-winstaller", "@tailwindcss/oxide"]
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -14,13 +18,13 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "electron:compile": "tsc -p tsconfig.electron.json",
-    "electron:dev": "npm run electron:compile && concurrently -k \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
-    "electron:build": "ELECTRON=true npm run build && npm run electron:compile && electron-builder",
-    "electron:build:win": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --win",
-    "electron:build:mac": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --mac",
-    "electron:build:linux": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --linux",
-    "capnp:gen": "npx capnp-es src/lib/io/scene.capnp -ots && rm -f src/lib/io/scene.js",
-    "publish:sdk": "cd sdk && npm publish"
+    "electron:dev": "pnpm run electron:compile && concurrently -k \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
+    "electron:build": "ELECTRON=true pnpm run build && pnpm run electron:compile && electron-builder",
+    "electron:build:win": "ELECTRON=true pnpm run build && pnpm run electron:compile && electron-builder --win",
+    "electron:build:mac": "ELECTRON=true pnpm run build && pnpm run electron:compile && electron-builder --mac",
+    "electron:build:linux": "ELECTRON=true pnpm run build && pnpm run electron:compile && electron-builder --linux",
+    "capnp:gen": "pnpm exec capnp-es src/lib/io/scene.capnp -ots && rm -f src/lib/io/scene.js",
+    "publish:sdk": "pnpm -C sdk publish"
   },
   "build": {
     "appId": "io.facet3d.app",
@@ -78,8 +82,6 @@
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.5.2",
     "capnp-es": "^0.0.14",
-    "capnp-ts": "^0.7.0",
-    "capnpc-ts": "^0.7.0",
     "hotkeys-js": "^4.0.4",
     "msgpackr": "^2.0.4",
     "postcss": "^8.5.16",
