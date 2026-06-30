@@ -1021,11 +1021,11 @@ export const useSceneStore = create<SceneState>((set, get) => ({
             ...obj.position,
             [axis]: -obj.position[axis],
           },
-          rotation: {
-            ...obj.rotation,
-            x: axis !== 'x' ? -obj.rotation.x : obj.rotation.x,
-            y: axis !== 'y' ? -obj.rotation.y : obj.rotation.y,
-            z: axis !== 'z' ? -obj.rotation.z : obj.rotation.z,
+          // Negate scale on the mirror axis — this is the geometric mirror.
+          // Rotation stays intact; the flipped scale handles orientation.
+          scale: {
+            ...obj.scale,
+            [axis]: -obj.scale[axis],
           },
         }
         objects.set(mirrored.id, mirrored)
