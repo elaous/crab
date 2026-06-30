@@ -60,6 +60,7 @@ export function buildMeshGroup(obj: SceneObject, selected: boolean): THREE.Group
   mesh.castShadow = true
   mesh.receiveShadow = true
   mesh.userData.objectId = obj.id
+  mesh.userData.baseOpacity = obj.opacity
   group.add(mesh)
 
   // Edges — only for parametric types (CSG geometry may have too many edges)

@@ -13,6 +13,8 @@ const DEFAULT_SETTINGS: SceneSettings = {
   toneMapping: 'aces', exposure: 1.0,
   bloomEnabled: false, bloomStrength: 0.4, bloomRadius: 0.4, bloomThreshold: 0.85,
   envPreset: 'studio', envIntensity: 1.0, bgColor: '#16213e',
+  stylePreset: 'default', edgesVisible: true, edgeColor: '#1e293b',
+  flatShading: false, xrayMode: false, bgGradient: false, bgColorTop: '#0f2027',
 }
 
 function makeObject(id: string, name = 'Box'): SceneObject {

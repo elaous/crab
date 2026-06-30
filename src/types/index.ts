@@ -10,6 +10,8 @@ export type ToneMapping = 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces'
 
 export type EnvPreset = 'none' | 'studio' | 'outdoor' | 'sunset' | 'city'
 
+export type StylePreset = 'default' | 'sketchy' | 'flat' | 'xray' | 'blueprint'
+
 export type ToolMode = 'select' | 'move' | 'rotate' | 'scale'
 
 export type BooleanOp = 'union' | 'subtract' | 'intersect'
@@ -132,6 +134,14 @@ export interface SceneSettings {
   envPreset: EnvPreset
   envIntensity: number    // 0–2
   bgColor: string         // hex background color
+  // Styles
+  stylePreset: StylePreset
+  edgesVisible: boolean
+  edgeColor: string
+  flatShading: boolean
+  xrayMode: boolean
+  bgGradient: boolean
+  bgColorTop: string
 }
 
 export type AnnotationType = 'label' | 'dimension'
