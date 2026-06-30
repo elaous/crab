@@ -10,13 +10,18 @@ import { VersionsPanel } from '../panels/VersionsPanel'
 import { CatalogPanel } from '../panels/CatalogPanel'
 import { BOMPanel } from '../panels/BOMPanel'
 import { Layout2DPanel } from '../panels/Layout2DPanel'
+import { SolidInspectorPanel } from '../panels/SolidInspectorPanel'
+import { MapPanel } from '../panels/MapPanel'
+import { UVPanel } from '../panels/UVPanel'
+import { CollabHistoryPanel } from '../panels/CollabHistoryPanel'
 
-type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog' | 'bom' | 'layout2d'
+type Tab = 'tools' | 'properties' | 'materials' | 'uv' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog' | 'bom' | 'layout2d' | 'solid' | 'map' | 'log'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'tools', label: 'Tools' },
   { id: 'properties', label: 'Props' },
   { id: 'materials', label: 'Mats' },
+  { id: 'uv', label: 'UV' },
   { id: 'lighting', label: 'Light' },
   { id: 'params', label: 'Params' },
   { id: 'styles', label: 'Styles' },
@@ -25,6 +30,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'catalog', label: 'Cat' },
   { id: 'bom', label: 'BOM' },
   { id: 'layout2d', label: '2D' },
+  { id: 'solid', label: 'Solid' },
+  { id: 'map', label: 'Map' },
+  { id: 'log', label: 'Log' },
 ]
 
 export function RightSidebar() {
@@ -58,6 +66,10 @@ export function RightSidebar() {
         {tab === 'catalog' && <CatalogPanel />}
         {tab === 'bom' && <BOMPanel />}
         {tab === 'layout2d' && <Layout2DPanel />}
+        {tab === 'uv' && <UVPanel />}
+        {tab === 'solid' && <SolidInspectorPanel />}
+        {tab === 'map' && <MapPanel />}
+        {tab === 'log' && <CollabHistoryPanel />}
       </div>
     </div>
   )

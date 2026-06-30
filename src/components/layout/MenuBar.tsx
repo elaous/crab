@@ -14,6 +14,8 @@ import { ScenePickerModal } from '../overlay/ScenePickerModal'
 import { ShareModal } from '../overlay/ShareModal'
 import { storage, storageMode } from '../../lib/storage'
 import { importModel, openModelFilePicker } from '../../lib/io/modelImporter'
+import { exportSVG2D } from '../../lib/io/svgExporter'
+import { openPrintLayout } from '../../lib/io/printLayout'
 import type { BooleanOp } from '../../types'
 import type { SceneEntry } from '../../lib/storage/types'
 
@@ -163,6 +165,30 @@ export function MenuBar() {
     }
   }
 
+  const handlePrint = () => {
+    const svgs = (['top', 'front', 'right'] as const).map(view => ({
+      label: view.charAt(0).toUpperCase() + view.slice(1),
+      svg: exportSVG2D(store.objects, view),
+    }))
+    openPrintLayout({
+      sceneName: store.sceneName,
+      svgs,
+      objects: store.objects,
+      units: store.settings.units,
+    })
+    close()
+  }
+
+  const handlePurge = () => {
+    const result = store.purgeUnused()
+    const msg = [
+      result.layers > 0 ? `${result.layers} empty layer(s)` : '',
+      result.components > 0 ? `${result.components} unused component def(s)` : '',
+    ].filter(Boolean)
+    alert(msg.length > 0 ? `Purged: ${msg.join(', ')}` : 'Nothing to purge — scene is clean.')
+    close()
+  }
+
   const handleBoolean = (op: BooleanOp) => {
     const ids = Array.from(store.selectedIds)
     if (ids.length !== 2) return
@@ -200,6 +226,8 @@ export function MenuBar() {
         { label: 'Export SVG 2D (Top)…', action: () => handleExportSVG('top') },
         { label: 'Export SVG 2D (Front)…', action: () => handleExportSVG('front') },
         { label: 'Export SVG 2D (Right)…', action: () => handleExportSVG('right') },
+        { type: 'sep' as const },
+        { label: 'Print / Page Layout…', action: handlePrint },
       ],
     },
     {
@@ -243,6 +271,7 @@ export function MenuBar() {
         },
         { type: 'sep' as const },
         { label: 'Preferences…', shortcut: 'Ctrl+,', action: () => { setPrefsOpen(true); close() } },
+        { label: 'Purge Unused (layers, components)…', action: handlePurge },
         { type: 'sep' as const },
         {
           label: `Boolean Union${!hasTwoSelected ? ' (select 2)' : ''}`,

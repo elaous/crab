@@ -107,6 +107,7 @@ export class SceneManager {
     originalPos: { x: 0, y: 0, z: 0 },
   }
   private faceHighlight: THREE.Mesh | null = null
+  private faceSelectHighlight: THREE.Mesh | null = null
   private snapIndicator: THREE.Mesh | null = null
 
   // Measure state
@@ -387,6 +388,7 @@ export class SceneManager {
       this.drawFacePlane = null
       this.followMeProfileId = null
       this.followMePoints = []
+      this.clearFaceSelectHighlight()
     }
 
     this.toolMode = mode
@@ -1003,6 +1005,46 @@ export class SceneManager {
     }
   }
 
+  private showFaceSelectHighlight(hit: THREE.Intersection) {
+    this.clearFaceSelectHighlight()
+    if (!hit.face) return
+    const geo = new THREE.BufferGeometry()
+    const mesh = hit.object as THREE.Mesh
+    const posAttr = mesh.geometry.attributes.position
+    const face = hit.face
+    const a = new THREE.Vector3().fromBufferAttribute(posAttr, face.a).applyMatrix4(mesh.matrixWorld)
+    const b = new THREE.Vector3().fromBufferAttribute(posAttr, face.b).applyMatrix4(mesh.matrixWorld)
+    const c = new THREE.Vector3().fromBufferAttribute(posAttr, face.c).applyMatrix4(mesh.matrixWorld)
+    geo.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]),
+      3,
+    ))
+    geo.setIndex([0, 1, 2])
+    const normal = hit.face.normal.clone()
+      .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
+      .normalize()
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x3b82f6,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    })
+    this.faceSelectHighlight = new THREE.Mesh(geo, mat)
+    this.faceSelectHighlight.renderOrder = 3
+    this.faceSelectHighlight.position.addScaledVector(normal, 0.001)
+    this.scene.add(this.faceSelectHighlight)
+  }
+
+  private clearFaceSelectHighlight() {
+    if (this.faceSelectHighlight) {
+      this.scene.remove(this.faceSelectHighlight)
+      this.faceSelectHighlight.geometry.dispose()
+      ;(this.faceSelectHighlight.material as THREE.Material).dispose()
+      this.faceSelectHighlight = null
+    }
+  }
+
   private showSnapIndicator(point: THREE.Vector3, type: string) {
     if (!this.snapIndicator) {
       const geo = new THREE.SphereGeometry(0.06, 8, 8)
@@ -1252,6 +1294,21 @@ export class SceneManager {
       return
     }
 
+    // Face selection tool — highlight clicked face and select parent object
+    if (this.toolMode === 'faceselect') {
+      const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (hits.length > 0 && hits[0].face) {
+        const hit = hits[0]
+        const id = hit.object.userData.objectId as string
+        if (id) this.callbacks.onSelect(id, e.ctrlKey || e.metaKey || e.shiftKey)
+        this.showFaceSelectHighlight(hit)
+      } else {
+        this.clearFaceSelectHighlight()
+        this.callbacks.onSelect(null, false)
+      }
+      return
+    }
+
     // Box selection tracking
     if (this.toolMode === 'select') {
       const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
@@ -1326,6 +1383,16 @@ export class SceneManager {
       }
     } else if (this.toolMode !== 'pushpull') {
       this.hideSnapIndicator()
+    }
+
+    // Face select hover
+    if (this.toolMode === 'faceselect') {
+      const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (hits.length > 0 && hits[0].face) {
+        this.showFaceSelectHighlight(hits[0])
+      } else {
+        this.clearFaceSelectHighlight()
+      }
     }
 
     // Track hovered face for face-flush alignment

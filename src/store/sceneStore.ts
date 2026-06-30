@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
-  PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims, LineDims,
+  PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims, LineDims, TorusDims, HelixDims,
   ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData,
   Annotation, Assembly, ComponentDef, Parameter, SceneVersion,
 } from '../types'
@@ -58,12 +58,14 @@ const LAYER_COLORS = [
   '#fb7185', '#38bdf8', '#4ade80', '#facc15', '#c084fc',
 ]
 
-function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | ConeDims | LineDims | Record<string, never> {
+function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | ConeDims | LineDims | TorusDims | HelixDims | Record<string, never> {
   switch (type) {
     case 'box': return { width: 1, height: 1, depth: 1 }
     case 'sphere': return { radius: 0.5 }
     case 'cylinder': return { radius: 0.5, height: 1 }
     case 'cone': return { radius: 0.5, height: 1 }
+    case 'torus': return { radius: 0.5, tube: 0.15 }
+    case 'helix': return { radius: 0.3, height: 2, turns: 4, tubeRadius: 0.04 }
     case 'line': return { length: 1 }
     case 'csg': return {}
     case 'component-instance': return {}
@@ -186,6 +188,11 @@ interface SceneState {
   offsetSelectedFace: (distance: number) => void
   sweepFollowMe: (profileId: string, pathPoints: Vec3[]) => void
 
+  // Scene maintenance
+  purgeUnused: () => { layers: number; materials: number; components: number }
+  collabLog: Array<{ ts: number; user: string; action: string; detail: string }>
+  logCollabAction: (user: string, action: string, detail: string) => void
+
   // Versioning
   versions: SceneVersion[]
   createVersion: (name?: string) => string
@@ -254,6 +261,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   history: [],
   historyIndex: -1,
   versions: [],
+  collabLog: [],
   mousePos3D: { x: 0, y: 0, z: 0, valid: false },
   viewMode: 'perspective',
   viewPreset: 'iso',
@@ -285,6 +293,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       return { objects, isDirty: true }
     })
     get().pushHistory()
+    get().logCollabAction('me', 'add', name)
     return id
   },
 
@@ -1149,6 +1158,50 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         return { objects: objs, selectedIds: new Set([id]), isDirty: true }
       })
     })
+  },
+
+  logCollabAction: (user, action, detail) => {
+    set(state => ({
+      collabLog: [
+        { ts: Date.now(), user, action, detail },
+        ...state.collabLog.slice(0, 199),
+      ],
+    }))
+  },
+
+  purgeUnused: () => {
+    const { layers, layerOrder, objects, componentDefs, componentDefOrder } = get()
+
+    // Layers not referenced by any object (except default)
+    const usedLayerIds = new Set(Array.from(objects.values()).map(o => o.layerId))
+    const unusedLayerIds = Array.from(layers.keys()).filter(
+      id => id !== 'default' && !usedLayerIds.has(id),
+    )
+
+    // Component defs with zero instances
+    const usedDefIds = new Set(
+      Array.from(objects.values())
+        .filter(o => o.type === 'component-instance' && o.componentDefId)
+        .map(o => o.componentDefId as string),
+    )
+    const unusedDefIds = Array.from(componentDefs.keys()).filter(id => !usedDefIds.has(id))
+
+    set(state => {
+      const newLayers = new Map(state.layers)
+      unusedLayerIds.forEach(id => newLayers.delete(id))
+      const newDefs = new Map(state.componentDefs)
+      unusedDefIds.forEach(id => newDefs.delete(id))
+      return {
+        layers: newLayers,
+        layerOrder: state.layerOrder.filter(id => !unusedLayerIds.includes(id)),
+        componentDefs: newDefs,
+        componentDefOrder: state.componentDefOrder.filter(id => !unusedDefIds.includes(id)),
+        isDirty: true,
+      }
+    })
+
+    void layerOrder; void componentDefOrder
+    return { layers: unusedLayerIds.length, materials: 0, components: unusedDefIds.length }
   },
 
   loadScene: (objects, layers, layerOrder, settings, annotations, assemblies, componentDefs, parameters) => {

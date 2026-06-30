@@ -119,13 +119,36 @@ export async function importIFC(file: File): Promise<SceneObject[]> {
   })
 }
 
+export async function importDXF(file: File): Promise<SceneObject[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = async e => {
+      try {
+        const text = e.target?.result as string
+        const { parseDXF } = await import('./dxfImporter')
+        resolve(parseDXF(text))
+      } catch (err) { reject(err) }
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(file)
+  })
+}
+
+export async function importFBX(file: File): Promise<SceneObject[]> {
+  const { importFBX: _importFBX } = await import('./fbxImporter')
+  return _importFBX(file)
+}
+
 export async function importModel(file: File): Promise<SceneObject[]> {
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext === 'glb' || ext === 'gltf') return importGLTF(file)
   if (ext === 'obj') return importOBJ(file)
   if (ext === 'ifc') return importIFC(file)
+  if (ext === 'dxf') return importDXF(file)
+  if (ext === 'fbx') return importFBX(file)
   if (ext === 'skp') throw new Error(
-    'SketchUp .skp files must be exported first.\n\nIn SketchUp: File → Export → 3D Model → .glb or .obj\nThen import that file here.',
+    'SketchUp .skp files can be imported via File → Import from 3D Warehouse URL using a public share link, ' +
+    'or exported from SketchUp via File → Export → 3D Model → .glb then imported here.',
   )
   throw new Error(`Unsupported format: .${ext}`)
 }
@@ -134,7 +157,7 @@ export function openModelFilePicker(): Promise<File | null> {
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.glb,.gltf,.obj,.ifc,.skp'
+    input.accept = '.glb,.gltf,.obj,.ifc,.dxf,.fbx,.skp'
     input.onchange = () => resolve(input.files?.[0] ?? null)
     input.click()
   })

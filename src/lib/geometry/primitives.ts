@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { SceneObject, PrimitiveType, BoxDims, SphereDims, CylinderDims, ConeDims, LineDims, LineStyle } from '../../types'
+import type { SceneObject, PrimitiveType, BoxDims, SphereDims, CylinderDims, ConeDims, LineDims, TorusDims, HelixDims, LineStyle } from '../../types'
 import { deserializeGeometry } from '../csg/geometry'
 
 const SEGMENTS = 32
@@ -34,7 +34,39 @@ export function createGeometry(
       const d = dims as ConeDims
       return new THREE.ConeGeometry(d.radius, d.height, SEGMENTS)
     }
+    case 'torus': {
+      const d = dims as TorusDims
+      return new THREE.TorusGeometry(d.radius ?? 0.5, d.tube ?? 0.15, 16, SEGMENTS)
+    }
+    case 'helix': {
+      const d = dims as HelixDims
+      return buildHelixGeometry(d.radius ?? 0.5, d.height ?? 2, d.turns ?? 3, d.tubeRadius ?? 0.05)
+    }
   }
+}
+
+function buildHelixGeometry(radius: number, height: number, turns: number, tubeRadius: number): THREE.BufferGeometry {
+  const pathPoints: THREE.Vector3[] = []
+  const steps = Math.max(turns * 32, 64)
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const angle = t * turns * Math.PI * 2
+    pathPoints.push(new THREE.Vector3(
+      Math.cos(angle) * radius,
+      t * height - height / 2,
+      Math.sin(angle) * radius,
+    ))
+  }
+  const curve = new THREE.CatmullRomCurve3(pathPoints)
+  const shape = new THREE.Shape()
+  shape.absarc(0, 0, tubeRadius, 0, Math.PI * 2, false)
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    extrudePath: curve,
+    steps: steps,
+    bevelEnabled: false,
+  })
+  geo.computeVertexNormals()
+  return geo
 }
 
 function makeDashedMaterial(style: LineStyle, color: string, width: number): THREE.LineDashedMaterial | THREE.LineBasicMaterial {
@@ -90,7 +122,7 @@ function getGeometry(obj: SceneObject): THREE.BufferGeometry {
   if (obj.type === 'component-instance' || obj.type === 'line') {
     return new THREE.BoxGeometry(0.5, 0.5, 0.5)
   }
-  return createGeometry(obj.type, obj.dimensions)
+  return createGeometry(obj.type as Exclude<PrimitiveType, 'csg' | 'component-instance' | 'line' | 'imported'>, obj.dimensions)
 }
 
 export function buildMeshGroup(obj: SceneObject, selected: boolean): THREE.Group {
@@ -110,7 +142,12 @@ export function buildMeshGroup(obj: SceneObject, selected: boolean): THREE.Group
     side: obj.opacity < 1 ? THREE.DoubleSide : THREE.FrontSide,
   })
   if (obj.textureDataUrl) {
-    mat.map = getCachedTexture(obj.textureDataUrl)
+    const tex = getCachedTexture(obj.textureDataUrl)
+    if (obj.uvOffset) tex.offset.set(obj.uvOffset.x, obj.uvOffset.y)
+    if (obj.uvScale)  tex.repeat.set(obj.uvScale.x, obj.uvScale.y)
+    if (obj.uvRotation != null) tex.rotation = THREE.MathUtils.degToRad(obj.uvRotation)
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+    mat.map = tex
     mat.needsUpdate = true
   }
 

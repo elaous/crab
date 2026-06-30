@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 import { serialize } from '../../lib/io/sceneSerializer'
 import { serializeBinary } from '../../lib/io/capnpSerializer'
+import type { UserRole } from '../../types'
 
-type Permission = 'viewer' | 'editor' | 'owner'
+type Permission = UserRole
 
 interface ShareEntry {
   id: string

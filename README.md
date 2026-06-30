@@ -213,20 +213,37 @@ api/              # Express 5 + Prisma 6 REST API (for self-hosted mode)
 - [x] **Import from 3D Warehouse URL** — paste any public .glb/.gltf URL; File → Import from 3D Warehouse URL
 - [x] **Headless CLI render** — `scripts/render.ts` (Playwright + headless Chromium): `npx tsx scripts/render.ts scene.crab --view iso --out render.png`
 - [x] **Align to Face** — hover over a surface, click "Align to Face" in Geometry Ops to snap selected object to that position
+- [x] **Sub-object face selection** — `faceselect` tool (F2) highlights individual triangular faces with blue overlay; selects parent object; hover preview
+- [x] **Torus & Helix primitives** — curved geometry via `THREE.TorusGeometry` and custom CatmullRom + `THREE.ExtrudeGeometry` helix builder
+- [x] **DXF import** — ASCII tokenizer handles LINE, ARC, CIRCLE, LWPOLYLINE, 3DFACE entities; converts to CSGGeometryData
+- [x] **FBX import** — via `three/addons/loaders/FBXLoader.js`; traverses mesh children into scene objects
+- [x] **Solid Inspector** — edge-sharing analysis: reports duplicate vertices, degenerate triangles, open edges, and non-manifold edges per mesh
+- [x] **Map import (OSM)** — fetch real-world tile textures from OpenStreetMap, positioned at true metre scale per zoom level
+- [x] **UV texture editor** — per-object UV offset, scale, and rotation controls with `THREE.RepeatWrapping`; set-origin helpers (corner/center)
+- [x] **Collaboration history log** — rolling 200-entry per-session change log (add/move/update/delete) with color-coded action types
+- [x] **Purge Unused** — removes empty layers (except Default) and component definitions with zero placed instances; reports count
+- [x] **Print / Page Layout** — A3 landscape HTML page with title block, SVG orthographic views, and BOM table; opens in new window and auto-prints
+- [x] **Role-based access control types** — canonical `UserRole = 'owner' | 'editor' | 'viewer'` in types; ShareModal wired to this type
+- [x] **LOD / GPU instancing optimizer** — `buildInstancedMeshes()` groups component instances by definition into `THREE.InstancedMesh` for reduced draw calls
 
 ### Roadmap
 
 - [ ] **Import price sheet** — load a CSV of SKU / unit-cost rows and link each to a Smart Material or Smart Component definition automatically
-- [ ] **Sub-object face/edge selection** — click individual faces/edges for Push/Pull, Draw-on-face auto-fill, and edge eraser
-- [ ] **SketchUp importer** — parse `.skp` files and convert geometry + materials
+- [ ] **SketchUp importer** — parse `.skp` binary format and convert geometry + materials; investigate Trimble SDK bridge
 - [ ] **SDK npm package** — publish `@crabcad/sdk` to npm for third-party plugin development
 - [ ] **Universal updater** — auto-update across Electron and future desktop targets
 - [ ] **Agentic drawing** — natural-language scene generation with pluggable LLM backend
-- [ ] **Map import** — drop in a base map tile (OSM / Google Maps) as a scene floor plane
 - [ ] **ArcGIS support** — import GIS layers (shapefiles, feature services) as 3D geometry
 - [ ] **Transparency Manifest** — machine-readable declaration of every browser API the app uses
-- [ ] **Collaboration history** — per-user change log, revert to any point
 - [ ] **Cap'n Proto binary encoding** — full capnp binary once `capnpc-ts` supports TypeScript 6
+- [ ] **Scan / point cloud import** — load `.las` / `.ply` point cloud files as a textured billboard mesh
+- [ ] **Mobile / touch input** — pinch-to-zoom, two-finger orbit, tap-to-select on iOS/Android browsers
+- [ ] **Accessibility (a11y)** — ARIA labels, keyboard-navigable panels, high-contrast theme, reduced-motion option
+- [ ] **CI/CD test coverage** — unit tests for geometry, serializer, formula evaluator; Playwright E2E smoke tests; coverage report in CI
+- [ ] **Material physics** — density, tensile strength, thermal conductivity metadata on material presets; drives structural BOM analysis
+- [ ] **Clipping volumes** — box/sphere region clip to hide geometry outside the clipping zone; non-destructive live preview
+- [ ] **Eraser for individual faces/edges** — in faceselect mode, delete the selected face and re-triangulate the mesh
+- [ ] **Set material origin** — click-to-place UV coordinate origin on mesh surface; drives `uvOffset` from picked point
 
 ## Self-Hosting
 

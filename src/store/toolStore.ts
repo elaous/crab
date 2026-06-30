@@ -3,7 +3,7 @@ import { create } from 'zustand'
 export type ToolMode =
   | 'select' | 'move' | 'rotate' | 'scale' | 'pushpull'
   | 'draw' | 'arc' | 'polygon' | 'eraser' | 'measure' | 'protractor'
-  | 'walk' | 'followme'
+  | 'walk' | 'followme' | 'faceselect'
 
 interface Vec3Plain { x: number; y: number; z: number }
 
