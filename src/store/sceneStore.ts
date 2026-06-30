@@ -33,6 +33,15 @@ const DEFAULT_SETTINGS: SceneSettings = {
   sectionEnabled: false,
   sectionAxis: 'y' as const,
   sectionOffset: 0,
+  toneMapping: 'aces' as const,
+  exposure: 1.0,
+  bloomEnabled: false,
+  bloomStrength: 0.4,
+  bloomRadius: 0.4,
+  bloomThreshold: 0.85,
+  envPreset: 'studio' as const,
+  envIntensity: 1.0,
+  bgColor: '#16213e',
 }
 
 const LAYER_COLORS = [

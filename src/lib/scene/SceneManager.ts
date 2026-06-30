@@ -4,7 +4,9 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js'
-import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims, Annotation, CameraSnapshot, ComponentDef } from '../../types'
+import { Sky } from 'three/addons/objects/Sky.js'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims, Annotation, CameraSnapshot, ComponentDef, ToneMapping, EnvPreset } from '../../types'
 import type { ToolMode } from '../../store/toolStore'
 import { buildMeshGroup, applyTransform } from '../geometry/primitives'
 import { SnapEngine } from '../tools/SnapEngine'
@@ -91,6 +93,10 @@ export class SceneManager {
   }
   private faceHighlight: THREE.Mesh | null = null
   private snapIndicator: THREE.Mesh | null = null
+
+  // Environment
+  private _envTexture: THREE.Texture | null = null
+  private _bgColor = '#16213e'
 
   // Tool mode
   private toolMode: ToolMode = 'select'
@@ -272,6 +278,7 @@ export class SceneManager {
     cancelAnimationFrame(this.frameId)
     this.orbitControls.dispose()
     this.transformControls.dispose()
+    this._envTexture?.dispose()
     this.renderer.dispose()
     this.labelRenderer?.domElement.remove()
     this.canvas.removeEventListener('pointerdown', this.onPointerDown)
@@ -540,6 +547,83 @@ export class SceneManager {
   }
   setSobel(enabled: boolean) {
     this.postProcessor?.setSobel(enabled)
+  }
+  setBloom(enabled: boolean, strength: number, radius: number, threshold: number) {
+    this.postProcessor?.setBloom(enabled, strength, radius, threshold)
+  }
+  setToneMapping(type: ToneMapping, exposure: number) {
+    const map: Record<ToneMapping, THREE.ToneMapping> = {
+      none: THREE.NoToneMapping,
+      linear: THREE.LinearToneMapping,
+      reinhard: THREE.ReinhardToneMapping,
+      cineon: THREE.CineonToneMapping,
+      aces: THREE.ACESFilmicToneMapping,
+    }
+    this.renderer.toneMapping = map[type]
+    this.renderer.toneMappingExposure = exposure
+  }
+  setEnvironment(preset: EnvPreset, intensity: number) {
+    if (this._envTexture) {
+      this._envTexture.dispose()
+      this._envTexture = null
+    }
+
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+
+    if (preset === 'none') {
+      this.scene.environment = null
+      this.scene.background = new THREE.Color(this._bgColor)
+      pmrem.dispose()
+      return
+    }
+
+    if (preset === 'studio') {
+      pmrem.compileEquirectangularShader()
+      const roomEnv = new RoomEnvironment()
+      const envMap = pmrem.fromScene(roomEnv).texture
+      roomEnv.dispose()
+      this._envTexture = envMap
+      this.scene.environment = envMap
+      this.scene.background = new THREE.Color(this._bgColor)
+    } else {
+      const sky = new Sky()
+      sky.scale.setScalar(450000)
+      const skyMat = sky.material as THREE.ShaderMaterial
+      const u = skyMat.uniforms
+      const configs: Record<'outdoor' | 'sunset' | 'city', { turbidity: number; rayleigh: number; mie: number; mieG: number; elev: number; az: number }> = {
+        outdoor: { turbidity: 2, rayleigh: 1, mie: 0.005, mieG: 0.8, elev: 60, az: 180 },
+        sunset:  { turbidity: 10, rayleigh: 3, mie: 0.005, mieG: 0.7, elev: 5, az: 220 },
+        city:    { turbidity: 10, rayleigh: 2, mie: 0.003, mieG: 0.9, elev: 45, az: 180 },
+      }
+      const c = configs[preset]
+      u['turbidity'].value = c.turbidity
+      u['rayleigh'].value = c.rayleigh
+      u['mieCoefficient'].value = c.mie
+      u['mieDirectionalG'].value = c.mieG
+      const sun = new THREE.Vector3()
+      sun.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - c.elev), THREE.MathUtils.degToRad(c.az))
+      u['sunPosition'].value.copy(sun)
+
+      const tempScene = new THREE.Scene()
+      tempScene.add(sky)
+      pmrem.compileCubemapShader()
+      const envMap = pmrem.fromScene(tempScene).texture
+      this._envTexture = envMap
+      this.scene.environment = envMap
+      this.scene.background = envMap
+    }
+
+    ;(this.scene as unknown as Record<string, unknown>)['environmentIntensity'] = intensity
+    pmrem.dispose()
+  }
+  setBackground(color: string) {
+    this._bgColor = color
+    this.renderer.setClearColor(new THREE.Color(color))
+    const fog = this.scene.fog as THREE.Fog | null
+    if (fog) fog.color.set(color)
+    if (!(this.scene.background instanceof THREE.Texture)) {
+      this.scene.background = new THREE.Color(color)
+    }
   }
   setSunDirection(azimuthDeg: number, elevationDeg: number, intensity: number) {
     const az = THREE.MathUtils.degToRad(azimuthDeg)

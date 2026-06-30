@@ -86,6 +86,129 @@ export function LightingPanel() {
 
         <div className="border-t border-slate-700" />
 
+        {/* Tone mapping */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Tone Mapping</div>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {(['none', 'linear', 'reinhard', 'cineon', 'aces'] as const).map(tm => (
+              <button
+                key={tm}
+                className={`px-2 py-0.5 text-xs rounded capitalize transition-colors
+                  ${settings.toneMapping === tm
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                onClick={() => updateSettings({ toneMapping: tm })}
+              >
+                {tm}
+              </button>
+            ))}
+          </div>
+          <div>
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>Exposure</span>
+              <span className="font-mono">{settings.exposure.toFixed(2)}</span>
+            </div>
+            <input
+              type="range" min={0.1} max={3} step={0.05}
+              value={settings.exposure}
+              className="w-full accent-blue-500"
+              onChange={e => updateSettings({ exposure: parseFloat(e.target.value) })}
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-slate-700" />
+
+        {/* Bloom */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Bloom</div>
+          <label className="flex items-center justify-between py-1 cursor-pointer group mb-1">
+            <span className="text-xs text-slate-300 group-hover:text-white">Enable Bloom</span>
+            <div
+              className={`relative w-8 h-4 rounded-full transition-colors ${settings.bloomEnabled ? 'bg-blue-600' : 'bg-slate-700'}`}
+              onClick={() => updateSettings({ bloomEnabled: !settings.bloomEnabled })}
+            >
+              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform shadow
+                ${settings.bloomEnabled ? 'translate-x-4' : 'translate-x-0.5'}`}
+              />
+            </div>
+          </label>
+          {settings.bloomEnabled && (
+            <>
+              {([
+                { label: 'Strength', key: 'bloomStrength' as const, min: 0, max: 3, step: 0.05 },
+                { label: 'Radius',   key: 'bloomRadius'   as const, min: 0, max: 1, step: 0.01 },
+                { label: 'Threshold',key: 'bloomThreshold'as const, min: 0, max: 1, step: 0.01 },
+              ] as const).map(({ label, key, min, max, step }) => (
+                <div key={key} className="mb-2">
+                  <div className="flex justify-between text-xs text-slate-500 mb-1">
+                    <span>{label}</span>
+                    <span className="font-mono">{(settings[key] as number).toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range" min={min} max={max} step={step}
+                    value={settings[key] as number}
+                    className="w-full accent-blue-500"
+                    onChange={e => updateSettings({ [key]: parseFloat(e.target.value) })}
+                  />
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="border-t border-slate-700" />
+
+        {/* Environment */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Environment</div>
+          <div className="grid grid-cols-3 gap-1 mb-2">
+            {(['none', 'studio', 'outdoor', 'sunset', 'city'] as const).map(preset => (
+              <button
+                key={preset}
+                className={`text-xs py-1 rounded capitalize transition-colors
+                  ${settings.envPreset === preset
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                onClick={() => updateSettings({ envPreset: preset })}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+          <div>
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>Intensity</span>
+              <span className="font-mono">{settings.envIntensity.toFixed(2)}</span>
+            </div>
+            <input
+              type="range" min={0} max={2} step={0.05}
+              value={settings.envIntensity}
+              className="w-full accent-blue-500"
+              onChange={e => updateSettings({ envIntensity: parseFloat(e.target.value) })}
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-slate-700" />
+
+        {/* Background */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Background</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={settings.bgColor}
+              className="w-8 h-8 rounded cursor-pointer border-0"
+              style={{ padding: 1 }}
+              onChange={e => updateSettings({ bgColor: e.target.value })}
+            />
+            <span className="text-xs text-slate-400 font-mono">{settings.bgColor}</span>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-700" />
+
         {/* Section cut */}
         <div>
           <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Section Cut</div>

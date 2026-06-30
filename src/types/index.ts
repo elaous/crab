@@ -6,6 +6,10 @@ export type ViewPreset = 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' 
 
 export type DisplayMode = 'wireframe' | 'shaded' | 'rendered'
 
+export type ToneMapping = 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces'
+
+export type EnvPreset = 'none' | 'studio' | 'outdoor' | 'sunset' | 'city'
+
 export type ToolMode = 'select' | 'move' | 'rotate' | 'scale'
 
 export type BooleanOp = 'union' | 'subtract' | 'intersect'
@@ -110,6 +114,16 @@ export interface SceneSettings {
   sectionEnabled: boolean
   sectionAxis: 'x' | 'y' | 'z'
   sectionOffset: number // world units
+  // Rendering upgrades
+  toneMapping: ToneMapping
+  exposure: number        // 0.1–3
+  bloomEnabled: boolean
+  bloomStrength: number   // 0–3
+  bloomRadius: number     // 0–1
+  bloomThreshold: number  // 0–1
+  envPreset: EnvPreset
+  envIntensity: number    // 0–2
+  bgColor: string         // hex background color
 }
 
 export type AnnotationType = 'label' | 'dimension'

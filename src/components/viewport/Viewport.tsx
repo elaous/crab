@@ -191,6 +191,22 @@ export function Viewport() {
   }, [settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset])
 
   useEffect(() => {
+    managerRef.current?.setToneMapping(settings.toneMapping, settings.exposure)
+  }, [settings.toneMapping, settings.exposure])
+
+  useEffect(() => {
+    managerRef.current?.setBloom(settings.bloomEnabled, settings.bloomStrength, settings.bloomRadius, settings.bloomThreshold)
+  }, [settings.bloomEnabled, settings.bloomStrength, settings.bloomRadius, settings.bloomThreshold])
+
+  useEffect(() => {
+    managerRef.current?.setEnvironment(settings.envPreset, settings.envIntensity)
+  }, [settings.envPreset, settings.envIntensity])
+
+  useEffect(() => {
+    managerRef.current?.setBackground(settings.bgColor)
+  }, [settings.bgColor])
+
+  useEffect(() => {
     managerRef.current?.syncAnnotations(annotations)
   }, [annotations])
 
