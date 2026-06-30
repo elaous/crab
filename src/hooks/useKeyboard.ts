@@ -16,6 +16,9 @@ export function useKeyboard() {
       // Shortcut help
       if (e.key === '?') { uiStore.setShortcutsOpen(true); return }
 
+      // Preferences
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); uiStore.setPrefsOpen(true); return }
+
       const ctrl = e.ctrlKey || e.metaKey
 
       // Undo/Redo

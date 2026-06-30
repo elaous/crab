@@ -8,6 +8,7 @@ import { downloadBinary, loadBinaryFromFile } from '../../lib/io/capnpSerializer
 import { performBoolean } from '../../lib/csg/BooleanOps'
 import { viewportBus } from '../../lib/viewportBus'
 import { useUIStore } from '../../store/uiStore'
+import { PreferencesModal } from '../overlay/PreferencesModal'
 import type { BooleanOp } from '../../types'
 
 function randomRoomId() {
@@ -23,7 +24,7 @@ export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [collabOpen, setCollabOpen] = useState(false)
   const [roomInput, setRoomInput] = useState(() => randomRoomId())
-  const { setShortcutsOpen, setOnboardingOpen } = useUIStore()
+  const { setShortcutsOpen, setOnboardingOpen, prefsOpen, setPrefsOpen } = useUIStore()
   const barRef = useRef<HTMLDivElement>(null)
   const store = useSceneStore()
   const collab = useCollabStore()
@@ -153,6 +154,8 @@ export function MenuBar() {
           },
         },
         { type: 'sep' as const },
+        { label: 'Preferences…', shortcut: 'Ctrl+,', action: () => { setPrefsOpen(true); close() } },
+        { type: 'sep' as const },
         {
           label: `Boolean Union${!hasTwoSelected ? ' (select 2)' : ''}`,
           disabled: !hasTwoSelected,
@@ -275,6 +278,10 @@ export function MenuBar() {
         <div className={`w-1.5 h-1.5 rounded-full ${collab.isConnected ? 'bg-green-300 animate-pulse' : 'bg-slate-500'}`} />
         {collab.isConnected ? `Live · ${1 + collab.peers.size}` : 'Live'}
       </button>
+
+      {/* Preferences modal */}
+      {prefsOpen && <PreferencesModal onClose={() => setPrefsOpen(false)} />}
+
 
       {/* Collab modal */}
       {collabOpen && (

@@ -16,7 +16,7 @@ const DEFAULT_LAYER: Layer = {
   locked: false,
 }
 
-const DEFAULT_SETTINGS: SceneSettings = {
+export const DEFAULT_SETTINGS: SceneSettings = {
   units: 'metric',
   precision: 3,
   snapEnabled: true,
@@ -985,3 +985,26 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })
   },
 }))
+
+// ─── Persistent preferences ────────────────────────────────────────────────
+
+const PREFS_KEY = 'crabcad-prefs'
+
+function loadPersistedPrefs(): Partial<SceneSettings> {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    return raw ? (JSON.parse(raw) as Partial<SceneSettings>) : {}
+  } catch { return {} }
+}
+
+// Hydrate settings from localStorage on startup
+const saved = loadPersistedPrefs()
+if (Object.keys(saved).length > 0) {
+  useSceneStore.getState().updateSettings(saved)
+}
+
+// Write settings to localStorage on every change
+useSceneStore.subscribe(state => {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(state.settings)) }
+  catch { /* quota exceeded or private browsing */ }
+})

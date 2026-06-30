@@ -53,6 +53,7 @@ const SECTIONS = [
     title: 'Help',
     shortcuts: [
       { key: '?', desc: 'Open this shortcut reference' },
+      { key: 'Ctrl+,', desc: 'Open Preferences' },
     ],
   },
 ]
