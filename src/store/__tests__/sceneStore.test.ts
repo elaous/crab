@@ -164,3 +164,46 @@ describe('layers', () => {
     expect(useSceneStore.getState().layers.has('default')).toBe(true)
   })
 })
+
+describe('deleteFace', () => {
+  it('removes the matching triangle from csgData indices', () => {
+    const id = useSceneStore.getState().addObject('box')
+    const csgData = {
+      positions: [0,0,0, 1,0,0, 0,1,0, 1,1,0],
+      normals:   [0,0,1, 0,0,1, 0,0,1, 0,0,1],
+      indices: [0,1,2, 1,3,2],
+    }
+    useSceneStore.getState().updateObject(id, { csgData, type: 'imported' })
+    useSceneStore.getState().deleteFace(id, 0, 1, 2)
+    const obj = useSceneStore.getState().objects.get(id)
+    expect(obj?.csgData?.indices).toEqual([1, 3, 2])
+  })
+
+  it('is a no-op when face is not found', () => {
+    const id = useSceneStore.getState().addObject('box')
+    const csgData = { positions: [0,0,0, 1,0,0, 0,1,0], normals: [0,0,1, 0,0,1, 0,0,1], indices: [0,1,2] }
+    useSceneStore.getState().updateObject(id, { csgData, type: 'imported' })
+    const before = useSceneStore.getState().objects.get(id)?.csgData?.indices?.length
+    useSceneStore.getState().deleteFace(id, 5, 6, 7) // non-existent face
+    const after = useSceneStore.getState().objects.get(id)?.csgData?.indices?.length
+    expect(after).toBe(before)
+  })
+
+  it('is a no-op when object has no csgData', () => {
+    const id = useSceneStore.getState().addObject('box')
+    expect(() => useSceneStore.getState().deleteFace(id, 0, 1, 2)).not.toThrow()
+  })
+
+  it('accepts any winding order of the same triangle', () => {
+    const id = useSceneStore.getState().addObject('box')
+    const csgData = {
+      positions: [0,0,0, 1,0,0, 0,1,0],
+      normals: [0,0,1, 0,0,1, 0,0,1],
+      indices: [0,1,2],
+    }
+    useSceneStore.getState().updateObject(id, { csgData, type: 'imported' })
+    // Supply face vertices in reversed winding
+    useSceneStore.getState().deleteFace(id, 2, 1, 0)
+    expect(useSceneStore.getState().objects.get(id)?.csgData?.indices).toEqual([])
+  })
+})

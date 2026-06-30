@@ -4,3 +4,6 @@ dist
 .env.local
 *.local
 .claude/
+coverage/
+playwright-report/
+test-results/
