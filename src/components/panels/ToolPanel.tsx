@@ -12,12 +12,24 @@ const primitives: Array<{ type: PrimitiveType; icon: string; label: string }> = 
   { type: 'line', icon: '╱', label: 'Line' },
 ]
 
-const tools: Array<{ mode: ToolMode; icon: string; label: string; key: string }> = [
-  { mode: 'select',   icon: '↖',  label: 'Select',    key: 'S' },
-  { mode: 'move',     icon: '✥',  label: 'Move',      key: 'M' },
-  { mode: 'rotate',   icon: '↻',  label: 'Rotate',    key: 'R' },
-  { mode: 'scale',    icon: '⤢',  label: 'Scale',     key: 'E' },
-  { mode: 'pushpull', icon: '⬆↕', label: 'Push/Pull', key: 'P' },
+const tools: Array<{ mode: ToolMode; icon: string; label: string; shortcut: string }> = [
+  { mode: 'select',   icon: '↖',  label: 'Select',    shortcut: 'S' },
+  { mode: 'move',     icon: '✥',  label: 'Move',      shortcut: 'M' },
+  { mode: 'rotate',   icon: '↻',  label: 'Rotate',    shortcut: 'R' },
+  { mode: 'scale',    icon: '⤢',  label: 'Scale',     shortcut: 'E' },
+  { mode: 'pushpull', icon: '⬆↕', label: 'Push/Pull', shortcut: 'P' },
+]
+
+const drawTools: Array<{ mode: ToolMode; icon: string; label: string; shortcut: string }> = [
+  { mode: 'draw',    icon: '✏️', label: 'Draw',    shortcut: 'D' },
+  { mode: 'arc',     icon: '⌒',  label: 'Arc',     shortcut: 'A' },
+  { mode: 'polygon', icon: '⬡',  label: 'Polygon', shortcut: 'G' },
+  { mode: 'eraser',  icon: '◻',  label: 'Eraser',  shortcut: 'X' },
+]
+
+const measureTools: Array<{ mode: ToolMode; icon: string; label: string; shortcut: string }> = [
+  { mode: 'measure',    icon: '📏', label: 'Tape',       shortcut: 'T' },
+  { mode: 'protractor', icon: '📐', label: 'Protractor', shortcut: 'Q' },
 ]
 
 const viewPresets = [
@@ -27,9 +39,38 @@ const viewPresets = [
   { preset: 'iso' as const, label: 'Iso' },
 ]
 
+interface ToolButtonProps {
+  mode: ToolMode
+  icon: string
+  label: string
+  shortcut: string
+  activeTool: ToolMode
+  onClick: () => void
+}
+
+function ToolButton({ mode, icon, label, shortcut, activeTool, onClick }: ToolButtonProps) {
+  return (
+    <button
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors border
+        ${activeTool === mode
+          ? 'bg-blue-700 border-blue-600 text-white'
+          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
+        }`}
+      onClick={onClick}
+      title={`${label} (${shortcut})`}
+    >
+      <span className="text-base w-5 text-center">{icon}</span>
+      <span className="flex-1">{label}</span>
+      <span className="text-slate-600 text-xs">{shortcut}</span>
+    </button>
+  )
+}
+
 export function ToolPanel() {
-  const { addObject, setViewPreset, setViewMode, viewMode, settings, updateSettings, selectedIds, mirrorObjects, arrayObjects } = useSceneStore()
+  const { addObject, setViewPreset, setViewMode, viewMode, settings, updateSettings, selectedIds, mirrorObjects, arrayObjects, offsetSelectedFace } = useSceneStore()
   const { activeTool, setActiveTool } = useToolStore()
+  const [offsetInput, setOffsetInput] = useState('')
+  const [showOffsetInput, setShowOffsetInput] = useState(false)
 
   // Array tool state
   const [arrayCount, setArrayCount] = useState(3)
@@ -47,21 +88,16 @@ export function ToolPanel() {
       <section>
         <div className="text-xs text-slate-500 mb-1 px-1 uppercase tracking-wider">Tools</div>
         <div className="flex flex-col gap-0.5">
-          {tools.map(({ mode, icon, label, key }) => (
-            <button
+          {tools.map(({ mode, icon, label, shortcut }) => (
+            <ToolButton
               key={mode}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors border
-                ${activeTool === mode
-                  ? 'bg-blue-700 border-blue-600 text-white'
-                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
-                }`}
+              mode={mode}
+              icon={icon}
+              label={label}
+              shortcut={shortcut}
+              activeTool={activeTool}
               onClick={() => setActiveTool(mode)}
-              title={`${label} (${key})`}
-            >
-              <span className="text-base w-5 text-center">{icon}</span>
-              <span className="flex-1">{label}</span>
-              <span className="text-slate-600 text-xs">{key}</span>
-            </button>
+            />
           ))}
         </div>
         {activeTool === 'pushpull' && (
@@ -69,6 +105,107 @@ export function ToolPanel() {
             Boxes only. Click face + drag.
           </div>
         )}
+      </section>
+
+      <div className="border-t border-slate-700" />
+
+      {/* Drawing tools */}
+      <section>
+        <div className="text-xs text-slate-500 mb-1 px-1 uppercase tracking-wider">Drawing</div>
+        <div className="flex flex-col gap-0.5">
+          {drawTools.map(({ mode, icon, label, shortcut }) => (
+            <ToolButton
+              key={mode}
+              mode={mode}
+              icon={icon}
+              label={label}
+              shortcut={shortcut}
+              activeTool={activeTool}
+              onClick={() => setActiveTool(mode)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className="border-t border-slate-700" />
+
+      {/* Measurement tools */}
+      <section>
+        <div className="text-xs text-slate-500 mb-1 px-1 uppercase tracking-wider">Measure</div>
+        <div className="flex flex-col gap-0.5">
+          {measureTools.map(({ mode, icon, label, shortcut }) => (
+            <ToolButton
+              key={mode}
+              mode={mode}
+              icon={icon}
+              label={label}
+              shortcut={shortcut}
+              activeTool={activeTool}
+              onClick={() => setActiveTool(mode)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className="border-t border-slate-700" />
+
+      {/* Geometry Ops */}
+      <section>
+        <div className="text-xs text-slate-500 mb-1 px-1 uppercase tracking-wider">Geometry Ops</div>
+        <div className="flex flex-col gap-1">
+          {/* Offset Face */}
+          {!showOffsetInput ? (
+            <button
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              onClick={() => setShowOffsetInput(true)}
+            >
+              <span className="w-5 text-center">⊡</span>
+              <span className="flex-1">Offset Face</span>
+            </button>
+          ) : (
+            <div className="flex gap-1">
+              <input
+                className="prop-input flex-1 text-xs"
+                placeholder="Distance…"
+                value={offsetInput}
+                autoFocus
+                onChange={e => setOffsetInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const d = parseFloat(offsetInput)
+                    if (!isNaN(d)) offsetSelectedFace(d)
+                    setShowOffsetInput(false)
+                    setOffsetInput('')
+                  }
+                  if (e.key === 'Escape') {
+                    setShowOffsetInput(false)
+                    setOffsetInput('')
+                  }
+                }}
+              />
+              <button
+                className="text-xs px-2 py-1 rounded bg-blue-700 text-white"
+                onClick={() => {
+                  const d = parseFloat(offsetInput)
+                  if (!isNaN(d)) offsetSelectedFace(d)
+                  setShowOffsetInput(false)
+                  setOffsetInput('')
+                }}
+              >OK</button>
+            </div>
+          )}
+
+          {/* Follow Me */}
+          <button
+            className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-slate-800 border border-slate-700 text-slate-600 cursor-not-allowed transition-colors"
+            title="Select profile + path, then click"
+            disabled
+          >
+            <span className="w-5 text-center">↪</span>
+            <span className="flex-1">Follow Me</span>
+            <span className="text-slate-700 text-xs">soon</span>
+          </button>
+        </div>
       </section>
 
       <div className="border-t border-slate-700" />

@@ -39,3 +39,24 @@ export const MATERIAL_CATEGORIES = Array.from(
 export function getPreset(id: string): MaterialPreset | undefined {
   return MATERIAL_PRESETS.find(m => m.id === id)
 }
+
+// ─── Custom (user-created) presets ──────────────────────────────────────────
+
+const CUSTOM_KEY = 'crabcad-custom-materials'
+
+export function loadCustomPresets(): MaterialPreset[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_KEY)
+    return raw ? (JSON.parse(raw) as MaterialPreset[]) : []
+  } catch { return [] }
+}
+
+export function saveCustomPreset(preset: MaterialPreset): void {
+  const existing = loadCustomPresets().filter(p => p.id !== preset.id)
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify([...existing, preset]))
+}
+
+export function deleteCustomPreset(id: string): void {
+  const existing = loadCustomPresets().filter(p => p.id !== id)
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(existing))
+}

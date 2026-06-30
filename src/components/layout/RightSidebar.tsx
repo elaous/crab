@@ -7,8 +7,9 @@ import { ParametricPanel } from '../panels/ParametricPanel'
 import { StylesPanel } from '../panels/StylesPanel'
 import { PluginsPanel } from '../panels/PluginsPanel'
 import { VersionsPanel } from '../panels/VersionsPanel'
+import { CatalogPanel } from '../panels/CatalogPanel'
 
-type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions'
+type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'tools', label: 'Tools' },
@@ -19,6 +20,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'styles', label: 'Styles' },
   { id: 'plugins', label: 'Plug' },
   { id: 'versions', label: 'Hist' },
+  { id: 'catalog', label: 'Cat' },
 ]
 
 export function RightSidebar() {
@@ -27,11 +29,11 @@ export function RightSidebar() {
   return (
     <div className="flex flex-col w-52 border-l border-slate-800 bg-slate-900 flex-shrink-0">
       {/* Tabs */}
-      <div className="flex border-b border-slate-800">
+      <div className="flex flex-wrap border-b border-slate-800">
         {TABS.map(t => (
           <button
             key={t.id}
-            className={`flex-1 py-1.5 text-xs font-medium transition-colors
+            className={`px-1.5 py-1.5 text-xs font-medium transition-colors
               ${tab === t.id ? 'text-blue-400 border-b-2 border-blue-400 -mb-px' : 'text-slate-500 hover:text-slate-300'}`}
             onClick={() => setTab(t.id)}
           >
@@ -49,6 +51,7 @@ export function RightSidebar() {
         {tab === 'styles' && <StylesPanel />}
         {tab === 'plugins' && <PluginsPanel />}
         {tab === 'versions' && <VersionsPanel />}
+        {tab === 'catalog' && <CatalogPanel />}
       </div>
     </div>
   )

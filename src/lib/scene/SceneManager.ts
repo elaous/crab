@@ -6,11 +6,15 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js'
 import { Sky } from 'three/addons/objects/Sky.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
 import type { SceneObject, ViewMode, ViewPreset, DisplayMode, MousePosition3D, Vec3, BoxDims, Annotation, CameraSnapshot, ComponentDef, ToneMapping, EnvPreset } from '../../types'
 import type { ToolMode } from '../../store/toolStore'
-import { buildMeshGroup, applyTransform } from '../geometry/primitives'
-import { SnapEngine } from '../tools/SnapEngine'
-import { PostProcessor } from '../rendering/PostProcessor'
+import { buildMeshGroup, applyTransform } from '../geometry/primitives.js'
+import { SnapEngine } from '../tools/SnapEngine.js'
+import { InferenceEngine } from '../tools/InferenceEngine.js'
+import { DrawEngine } from '../tools/DrawEngine.js'
+import { MeasureEngine } from '../tools/MeasureEngine.js'
+import { PostProcessor } from '../rendering/PostProcessor.js'
 
 export interface PushPullProgress {
   objectId: string
@@ -33,6 +37,10 @@ export type SceneManagerCallbacks = {
   onPushPullProgress: (p: PushPullProgress) => void
   onPushPullCommit: () => void
   onBoxSelect: (ids: string[]) => void
+  onMeasureComplete?: (distance: number, points: [Vec3, Vec3]) => void
+  onProtractorComplete?: (angle: number, points: [Vec3, Vec3, Vec3]) => void
+  onErase?: (id: string) => void
+  onDrawPoint?: (pts: Vec3[]) => void
 }
 
 interface FaceInfo {
@@ -82,6 +90,11 @@ export class SceneManager {
   labelRenderer: CSS2DRenderer | null = null
   annotationLabels: Map<string, CSS2DObject> = new Map()
 
+  // New engines
+  private inferenceEngine: InferenceEngine
+  private drawEngine: DrawEngine
+  private measureEngine: MeasureEngine
+
   // Push/pull
   private pp: PushPullState = {
     active: false, faceInfo: null,
@@ -93,6 +106,10 @@ export class SceneManager {
   }
   private faceHighlight: THREE.Mesh | null = null
   private snapIndicator: THREE.Mesh | null = null
+
+  // Measure state
+  private measureClickA: THREE.Vector3 | null = null
+  private protractorClicks: THREE.Vector3[] = []
 
   // Environment
   private _envTexture: THREE.Texture | null = null
@@ -114,6 +131,9 @@ export class SceneManager {
 
   // Transform controls tracking
   private tcAttachedId: string | null = null
+
+  // Touch pinch-to-zoom
+  private touchStartDist = 0
 
   private _destroyed = false
 
@@ -202,6 +222,10 @@ export class SceneManager {
     canvas.addEventListener('pointerup', this.onPointerUp)
     canvas.addEventListener('contextmenu', this.onContextMenu)
 
+    // Touch support
+    canvas.addEventListener('touchstart', this.onTouchStart, { passive: true })
+    canvas.addEventListener('touchmove', this.onTouchMove, { passive: true })
+
     this.resize()
 
     // Initialize post-processor after renderer and scene are ready
@@ -225,6 +249,11 @@ export class SceneManager {
       this.labelRenderer.domElement.style.pointerEvents = 'none'
       container.appendChild(this.labelRenderer.domElement)
     }
+
+    // Initialize new engines
+    this.inferenceEngine = new InferenceEngine(this.scene)
+    this.drawEngine = new DrawEngine(this.scene)
+    this.measureEngine = new MeasureEngine(this.scene)
 
     this.startLoop()
   }
@@ -293,9 +322,24 @@ export class SceneManager {
     this.canvas.removeEventListener('pointermove', this.onPointerMove)
     this.canvas.removeEventListener('pointerup', this.onPointerUp)
     this.canvas.removeEventListener('contextmenu', this.onContextMenu)
+    this.canvas.removeEventListener('touchstart', this.onTouchStart)
+    this.canvas.removeEventListener('touchmove', this.onTouchMove)
+
+    this.inferenceEngine.dispose()
+    this.drawEngine.dispose()
+    this.measureEngine.dispose()
   }
 
   setTool(mode: ToolMode) {
+    // Clear draw/measure state on tool change
+    if (this.toolMode !== mode) {
+      this.drawEngine.cancel()
+      this.measureEngine.clear()
+      this.inferenceEngine.hide()
+      this.measureClickA = null
+      this.protractorClicks = []
+    }
+
     this.toolMode = mode
     const showTC = mode === 'move' || mode === 'rotate' || mode === 'scale'
     const tcHelper = this.transformControls.getHelper()
@@ -309,6 +353,12 @@ export class SceneManager {
       this.canvas.style.cursor = 'cell'
     } else if (mode === 'select') {
       this.canvas.style.cursor = 'crosshair'
+    } else if (mode === 'draw') {
+      this.canvas.style.cursor = 'crosshair'
+    } else if (mode === 'measure' || mode === 'protractor') {
+      this.canvas.style.cursor = 'crosshair'
+    } else if (mode === 'eraser') {
+      this.canvas.style.cursor = 'cell'
     } else {
       this.canvas.style.cursor = 'default'
     }
@@ -350,7 +400,7 @@ export class SceneManager {
         const def = componentDefs.get(obj.componentDefId)
         geoKey = `component-instance|${obj.componentDefId}|${def?.objects.length ?? 0}`
       } else {
-        geoKey = `${obj.type}|${JSON.stringify(obj.dimensions)}`
+        geoKey = `${obj.type}|${JSON.stringify(obj.dimensions)}|${obj.textureDataUrl ? 'tex' : ''}`
       }
 
       if (!this.objectGroups.has(id)) {
@@ -645,6 +695,30 @@ export class SceneManager {
     ;(this.scene as unknown as Record<string, unknown>)['environmentIntensity'] = intensity
     pmrem.dispose()
   }
+
+  setHDRI(url: string): void {
+    const loader = new RGBELoader()
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    pmrem.compileEquirectangularShader()
+    loader.load(
+      url,
+      (texture) => {
+        const envMap = pmrem.fromEquirectangular(texture).texture
+        texture.dispose()
+        pmrem.dispose()
+        if (this._envTexture) this._envTexture.dispose()
+        this._envTexture = envMap
+        this.scene.environment = envMap
+        this.scene.background = envMap
+      },
+      undefined,
+      (err) => {
+        console.error('HDRI load error:', err)
+        pmrem.dispose()
+      },
+    )
+  }
+
   setBackground(color: string) {
     this._bgColor = color
     this.renderer.setClearColor(new THREE.Color(color))
@@ -741,6 +815,19 @@ export class SceneManager {
     this.perspCamera.lookAt(center)
     this.orbitControls.target.copy(center)
     this.orbitControls.update()
+  }
+
+  captureHighRes(scale: number): string {
+    const w = this.canvas.clientWidth
+    const h = this.canvas.clientHeight
+    this.renderer.setSize(w * scale, h * scale, false)
+    this.renderer.setPixelRatio(1)
+    if (this.postProcessor) this.postProcessor.render()
+    else this.renderer.render(this.scene, this.activeCamera)
+    const dataUrl = this.renderer.domElement.toDataURL('image/png')
+    this.renderer.setSize(w, h, false)
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    return dataUrl
   }
 
   // ─── Push/Pull helpers ────────────────────────────────────────────
@@ -851,6 +938,24 @@ export class SceneManager {
     return { objectId: id, worldNormal, axis, sign, hitPoint: hit.point.clone() }
   }
 
+  private getGroundPoint(): THREE.Vector3 | null {
+    const hits = this.raycaster.intersectObject(this.groundPlane, false)
+    if (hits.length > 0) {
+      const pt = hits[0].point
+      if (this.snapEnabled) {
+        pt.x = this.snapEngine.snapToGrid(pt.x, this.gridSize)
+        pt.z = this.snapEngine.snapToGrid(pt.z, this.gridSize)
+      }
+      return pt
+    }
+    return null
+  }
+
+  /** Commit the current draw path and return segment pairs */
+  commitDraw(): { x: number; y: number; z: number }[][] {
+    return this.drawEngine.commit()
+  }
+
   // ─── Event handlers ────────────────────────────────────────────────
 
   private onPointerDown = (e: PointerEvent) => {
@@ -889,6 +994,88 @@ export class SceneManager {
         // Signal push/pull started
         this.callbacks.onSelect(faceInfo.objectId, false)
         return
+      }
+      return
+    }
+
+    // Draw tool
+    if (this.toolMode === 'draw') {
+      const pt = this.getGroundPoint()
+      if (pt) {
+        // Double-click = commit
+        if (e.detail >= 2 && this.drawEngine.getPoints().length >= 2) {
+          // Add last point then commit
+          const segments = this.drawEngine.commit()
+          this.callbacks.onDrawPoint?.(
+            segments.map(seg => seg[0]).concat(segments.length > 0 ? [segments[segments.length - 1][1]] : []),
+          )
+        } else {
+          this.drawEngine.addPoint(pt)
+          const pts = this.drawEngine.getPoints()
+          this.callbacks.onDrawPoint?.(pts.map(p => ({ x: p.x, y: p.y, z: p.z })))
+          this.inferenceEngine.showFromPoint({ x: pt.x, y: pt.y, z: pt.z })
+        }
+      }
+      return
+    }
+
+    // Measure tool
+    if (this.toolMode === 'measure') {
+      const pt = this.getGroundPoint() ?? (() => {
+        const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+        return hits.length > 0 ? hits[0].point : null
+      })()
+      if (pt) {
+        if (!this.measureClickA) {
+          this.measureClickA = pt.clone()
+        } else {
+          const a = this.measureClickA
+          const distance = this.measureEngine.showMeasure(
+            { x: a.x, y: a.y, z: a.z },
+            { x: pt.x, y: pt.y, z: pt.z },
+          )
+          this.callbacks.onMeasureComplete?.(distance, [
+            { x: a.x, y: a.y, z: a.z },
+            { x: pt.x, y: pt.y, z: pt.z },
+          ])
+          this.measureClickA = null
+        }
+      }
+      return
+    }
+
+    // Protractor tool
+    if (this.toolMode === 'protractor') {
+      const pt = this.getGroundPoint() ?? (() => {
+        const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+        return hits.length > 0 ? hits[0].point : null
+      })()
+      if (pt) {
+        this.protractorClicks.push(pt.clone())
+        if (this.protractorClicks.length === 3) {
+          const [c, a, b] = this.protractorClicks
+          const angle = this.measureEngine.showProtractor(
+            { x: c.x, y: c.y, z: c.z },
+            { x: a.x, y: a.y, z: a.z },
+            { x: b.x, y: b.y, z: b.z },
+          )
+          this.callbacks.onProtractorComplete?.(angle, [
+            { x: c.x, y: c.y, z: c.z },
+            { x: a.x, y: a.y, z: a.z },
+            { x: b.x, y: b.y, z: b.z },
+          ])
+          this.protractorClicks = []
+        }
+      }
+      return
+    }
+
+    // Eraser tool
+    if (this.toolMode === 'eraser') {
+      const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (hits.length > 0) {
+        const id = hits[0].object.userData.objectId as string
+        if (id) this.callbacks.onErase?.(id)
       }
       return
     }
@@ -967,6 +1154,15 @@ export class SceneManager {
       }
     } else if (this.toolMode !== 'pushpull') {
       this.hideSnapIndicator()
+    }
+
+    // Draw tool preview
+    if (this.toolMode === 'draw' && this.drawEngine.getPoints().length > 0) {
+      const pt = this.getGroundPoint()
+      if (pt) {
+        this.drawEngine.updatePreview(pt)
+        this.inferenceEngine.showFromPoint({ x: pt.x, y: pt.y, z: pt.z })
+      }
     }
 
     // Box selection drag
@@ -1052,6 +1248,55 @@ export class SceneManager {
     const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
     const id = hits.length > 0 ? (hits[0].object.userData.objectId as string) : null
     this.callbacks.onContextMenu(e.clientX, e.clientY, id)
+  }
+
+  // ─── Touch support ─────────────────────────────────────────────────
+
+  private onTouchStart = (e: TouchEvent) => {
+    if (e.touches.length === 2) {
+      this.touchStartDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      )
+    }
+  }
+
+  private onTouchMove = (e: TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      )
+      const delta = dist - this.touchStartDist
+      this.orbitControls.dollyIn(Math.pow(0.95, -delta * 0.05))
+      this.orbitControls.update()
+      this.touchStartDist = dist
+    }
+  }
+
+  // ─── WebXR ────────────────────────────────────────────────────────
+
+  async enterXR(mode: 'vr' | 'ar'): Promise<void> {
+    if (!navigator.xr) {
+      console.warn('WebXR not supported')
+      return
+    }
+    this.renderer.xr.enabled = true
+    const sessionMode = mode === 'vr' ? 'immersive-vr' : 'immersive-ar'
+    try {
+      const session = await navigator.xr.requestSession(sessionMode, {
+        optionalFeatures: ['local-floor', 'bounded-floor'],
+      })
+      await this.renderer.xr.setSession(session)
+    } catch (err) {
+      console.error('XR session failed:', err)
+    }
+  }
+
+  exitXR(): void {
+    const session = this.renderer.xr.getSession()
+    if (session) session.end()
+    this.renderer.xr.enabled = false
   }
 
   /** Store object data on group for push/pull access */

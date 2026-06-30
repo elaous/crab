@@ -182,6 +182,9 @@ interface SceneState {
   _remoteSetObject: (id: string, obj: SceneObject) => void
   _remoteDeleteObject: (id: string) => void
 
+  // Geometry ops
+  offsetSelectedFace: (distance: number) => void
+
   // Versioning
   versions: SceneVersion[]
   createVersion: (name?: string) => string
@@ -1084,6 +1087,29 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     selectedIds.delete(id)
     return { objects, selectedIds }
   }),
+
+  offsetSelectedFace: (distance) => {
+    const { selectedIds, objects } = get()
+    if (selectedIds.size === 0) return
+    get().pushHistory()
+    set(state => {
+      const newObjects = new Map(state.objects)
+      selectedIds.forEach(id => {
+        const obj = newObjects.get(id)
+        if (!obj || obj.type !== 'box') return
+        const dims = obj.dimensions as import('../types').BoxDims
+        const newWidth = Math.max(0.01, dims.width + distance * 2)
+        const newHeight = Math.max(0.01, dims.height + distance * 2)
+        const newDepth = Math.max(0.01, dims.depth + distance * 2)
+        newObjects.set(id, {
+          ...obj,
+          dimensions: { width: newWidth, height: newHeight, depth: newDepth },
+        })
+      })
+      return { objects: newObjects, isDirty: true }
+    })
+    void objects
+  },
 
   loadScene: (objects, layers, layerOrder, settings, annotations, assemblies, componentDefs, parameters) => {
     const objMap = new Map(objects.map(o => [o.id, o]))

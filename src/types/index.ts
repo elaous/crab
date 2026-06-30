@@ -60,6 +60,7 @@ export interface SceneObject {
   roughness: number
   metalness: number
   materialPresetId?: string
+  textureDataUrl?: string   // base64 data URL for image texture map
   position: Vec3
   rotation: Vec3
   scale: Vec3
@@ -183,6 +184,8 @@ export interface MaterialPreset {
   metalness: number
   opacity: number
   icon?: string
+  textureDataUrl?: string  // base64 image for custom presets
+  custom?: boolean
 }
 
 export interface SceneData {

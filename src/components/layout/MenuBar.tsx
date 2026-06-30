@@ -4,6 +4,7 @@ import { useCollabStore } from '../../store/collabStore'
 import {
   serialize, deserialize, downloadSTL, downloadCSV, autosave,
 } from '../../lib/io/sceneSerializer'
+import { downloadIFC } from '../../lib/io/ifcExporter'
 import { downloadBinary, loadBinaryFromFile, serializeBinary, deserializeBinary } from '../../lib/io/capnpSerializer'
 import { performBoolean } from '../../lib/csg/BooleanOps'
 import { viewportBus } from '../../lib/viewportBus'
@@ -106,6 +107,16 @@ export function MenuBar() {
     close()
   }
 
+  const handleExportIFC = () => {
+    downloadIFC(store.objects, store.sceneName)
+    close()
+  }
+
+  const handleExportSVG = (view: 'top' | 'front' | 'right' | 'all') => {
+    viewportBus.emit({ type: 'exportSVG', view, sceneName: store.sceneName })
+    close()
+  }
+
   const handleNew = () => {
     if (store.isDirty && !confirm('Discard unsaved changes?')) return
     store.newScene()
@@ -154,6 +165,13 @@ export function MenuBar() {
         { label: 'Export GLTF', action: handleExportGLTF },
         { label: 'Export OBJ', action: handleExportOBJ },
         { label: 'Export CSV (BOM)', action: handleExportCSV },
+        { type: 'sep' as const },
+        { label: 'Export IFC (BIM)…', action: handleExportIFC },
+        { type: 'sep' as const },
+        { label: 'Export SVG 2D (All views)…', action: () => handleExportSVG('all') },
+        { label: 'Export SVG 2D (Top)…', action: () => handleExportSVG('top') },
+        { label: 'Export SVG 2D (Front)…', action: () => handleExportSVG('front') },
+        { label: 'Export SVG 2D (Right)…', action: () => handleExportSVG('right') },
       ],
     },
     {
