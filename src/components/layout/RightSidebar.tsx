@@ -8,8 +8,9 @@ import { StylesPanel } from '../panels/StylesPanel'
 import { PluginsPanel } from '../panels/PluginsPanel'
 import { VersionsPanel } from '../panels/VersionsPanel'
 import { CatalogPanel } from '../panels/CatalogPanel'
+import { BOMPanel } from '../panels/BOMPanel'
 
-type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog'
+type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog' | 'bom'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'tools', label: 'Tools' },
@@ -21,6 +22,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'plugins', label: 'Plug' },
   { id: 'versions', label: 'Hist' },
   { id: 'catalog', label: 'Cat' },
+  { id: 'bom', label: 'BOM' },
 ]
 
 export function RightSidebar() {
@@ -52,6 +54,7 @@ export function RightSidebar() {
         {tab === 'plugins' && <PluginsPanel />}
         {tab === 'versions' && <VersionsPanel />}
         {tab === 'catalog' && <CatalogPanel />}
+        {tab === 'bom' && <BOMPanel />}
       </div>
     </div>
   )

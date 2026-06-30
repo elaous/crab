@@ -1,6 +1,6 @@
 # CrabCAD — Open-Source 3D Modeling Suite
 
-A browser-based 3D modeling environment inspired by SketchUp, built with TypeScript, React, Three.js, and Zustand.
+A browser-based 3D modeling environment inspired by SketchUp, built with TypeScript, React, Three.js, and Zustand. Works offline with no server required; optionally self-hosted with multi-user persistence.
 
 ## Tech Stack
 
@@ -12,14 +12,14 @@ A browser-based 3D modeling environment inspired by SketchUp, built with TypeScr
 | 3D Rendering | Three.js 0.185 |
 | State | Zustand 5 |
 | Styling | Tailwind CSS v4 |
-| File Format | `.crab` — MessagePack binary (Cap'n Proto schema) |
+| File Format | `.crab` — MessagePack binary |
 | Testing | Vitest |
 
 ## Getting Started
 
 ```bash
 npm install
-npm run dev      # development server
+npm run dev      # development server (http://localhost:5173)
 npm test         # unit tests
 npm run build    # production build
 ```
@@ -34,42 +34,80 @@ npm run build    # production build
 - **Box Selection** — Rubber-band drag to select multiple objects
 - **Groups** — Named collections of objects, move as a unit
 - **Components** — Reusable definitions with multiple placed instances; edit once, update everywhere; explode back to geometry
+- **Mirror** — Mirror selected objects across X/Y/Z axis (negates scale)
+- **Array** — Rectangular and radial array with count and spacing
+- **Offset Face** — Inset/outset selected face by distance
+
+### Drawing Tools
+- **Draw (D)** — Freehand polyline/polygon drawing mode with inference guides (X/Y/Z axes)
+- **Arc (A)** — Three-point arc tool
+- **Polygon (G)** — Regular polygon by center + radius
+- **Eraser (X)** — Object deletion by click
+- **Tape Measure (T)** — Click-to-click distance measurement with CSS2D overlay label
+- **Protractor (Q)** — Three-point angle measurement
+
+### Snapping & Inference
+- **Smart Snap** — Vertex, midpoint, face-center, edge-point snap with visual indicator
+- **Angle Snap** — 15° / 45° / 90° increments
+- **Inference Guides** — Real-time X/Y/Z axis guide lines while drawing
+- **Grid Snap** — Configurable snap distance
 
 ### Scene Organization
 - **Object Tree** — Hierarchy view with rename, hide/show, lock, delete
 - **Layer System** — Create/rename/delete layers, toggle visibility, color coding, per-object assignment
 - **Component Library** — Definition list with instance count, place/delete, select-all-instances
+- **Assemblies** — Named sub-groups within the scene graph
+- **Annotations** — Text and dimension labels anchored to 3D positions (CSS2DRenderer)
+- **Camera Snapshots** — Save and restore named viewport positions
 
 ### Materials & Rendering
-- **PBR Materials** — 23 presets across 6 categories (Wood, Stone, Metal, Plastic, Glass, Other)
+- **PBR Materials** — 23 built-in presets across 6 categories (Wood, Stone, Metal, Plastic, Glass, Other)
+- **Custom Materials** — Create and save your own materials with optional texture image import
 - **Material Sliders** — Roughness, metalness, opacity, base color per object
+- **Smart Materials** — Optional physical metadata: SKU, manufacturer, unit cost, unit of measure, coverage per unit — drives the Takeoff / BOM panel
 - **Display Modes** — Shaded, Wireframe, Rendered
+- **Styles** — Edge overlay, flat shading, X-ray, gradient background; five one-click presets (Default / Sketchy / Flat / X-Ray / Blueprint)
 - **Post-Processing** — Outline pass, Sobel edge detection, bloom (UnrealBloomPass)
 - **Tone Mapping** — None, Linear, Reinhard, Cineon, ACES Filmic; exposure control
-- **Environment Presets** — Studio (RoomEnvironment), Outdoor, Sunset, City (procedural Sky + PMREMGenerator)
-- **Background Control** — Custom background color with fog sync
+- **Environment Presets** — Studio, Outdoor, Sunset, City; HDRI import
 - **Sun Controls** — Azimuth, elevation, intensity; soft shadows
+- **Screenshot** — Capture viewport at 1×, 2×, or 4× resolution
+
+### Catalog
+- **Component Catalog** — 7 categories (Architectural, Furniture, Mechanical, 2D Materials, 2D Furniture, Hardware, Appliances) with 39+ pre-built items
+- **2D Floor Plan Items** — Flat-box representations of flooring, tiles, furniture, fixtures, appliances for top-down layout design
+
+### Quantity Takeoff / BOM
+- **Takeoff Panel** — Analyzes all visible scene objects and aggregates material quantities by surface area (with 10% waste factor) and component instance counts
+- **Cost Estimates** — Multiplies quantities by unit cost from Smart Material/Component metadata
+- **CSV Export** — Download the full takeoff as a spreadsheet
+- **Smart Components** — Component definitions can carry SKU, manufacturer, and unit cost; instances are automatically counted in the BOM
 
 ### Documentation & Collaboration
-- **Annotations** — Text labels anchored to 3D positions (CSS2DRenderer)
-- **Camera Snapshots** — Save and restore named viewport positions
-- **Section Cuts** — Clip scene along X/Y/Z axis with real-time offset slider
-- **Viewport Capture** — Export current view as PNG
+- **Section Cuts** — Clip scene along X/Y/Z axis or arbitrary angle with real-time offset slider
+- **Real-time Collaboration** — Multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
+- **Versioning** — Named scene checkpoints (`Ctrl+Shift+S`), diff view (added/removed/modified), restore with undo safety
+- **WebXR** — Enter VR/AR mode on compatible headsets
 
 ### Import / Export
-- **Save/Load** — `.crab` binary files (MessagePack + embedded debug JSON); auto-detects legacy JSON
+- **Save/Load** — `.crab` binary files (MessagePack); auto-detects legacy JSON
 - **GLTF Export** — Full scene via Three.js GLTFExporter
 - **OBJ Export** — Mesh-only via Three.js OBJExporter
-- **STL Export** — Binary STL
+- **STL Export** — Binary STL with actual mesh triangulation
+- **IFC Export** — IFC 2x3 STEP format for BIM workflows
+- **SVG Export** — 2D orthographic drawings (Top, Front, Right, or all four views)
 - **CSV BOM** — Bill of materials with position, rotation, scale, material, notes
-- **Autosave** — 30-second autosave to localStorage; restored on next load
+- **3D Import** — GLTF / GLB / OBJ / STL via Three.js loaders
+- **Share Links** — Generate a shareable URL with viewer/editor permissions; `?share=TOKEN` loads the shared scene
 
 ### UI & Productivity
-- **Keyboard Shortcuts** — W/E/R/S tools, Ctrl+Z/Y undo/redo, Ctrl+D duplicate, Ctrl+G group, Del delete, Ctrl+A select all, H hide, `?` shortcut reference
-- **Shortcut Modal** — Full keyboard reference overlay (`?` or Help menu)
-- **Onboarding Wizard** — 5-step first-run guide (localStorage-persisted dismissal)
-- **View Presets** — Front, Back, Left, Right, Top, Bottom, Isometric (keys 1/3/7/0)
-- **Status Bar** — Live 3D cursor position, selection count, display mode, units
+- **Keyboard Shortcuts** — W/E/R/S tools, D/A/G/X drawing tools, T/Q measurement, Ctrl+Z/Y undo/redo, Ctrl+D duplicate, Ctrl+G group, Del delete, Ctrl+A select all, H hide, `?` shortcut reference
+- **Parametric Modeling** — Named parameters with formula expressions drive object dimensions
+- **Plugin System** — Sandboxed Web Worker plugins with `api.scene.*` surface, `registerTool()`, `log()`
+- **Electron App** — Desktop wrapper with native file dialogs, OS app menu, cross-platform builds
+- **Onboarding Wizard** — 5-step first-run guide
+- **View Presets** — Front/Back/Left/Right/Top/Bottom/Isometric (keys 1/3/7/0)
+- **Autosave** — 30-second autosave to localStorage
 - **Undo/Redo** — 50-step ring buffer
 
 ## File Format
@@ -82,10 +120,8 @@ npm run build    # production build
 [2 bytes] flags (bit 0 = debug JSON present)
 [4 bytes] payload length (uint32 LE)
 [N bytes] MessagePack-encoded scene data
-[M bytes] optional embedded JSON sidecar (debug mode, on by default)
+[M bytes] optional embedded JSON sidecar (debug mode)
 ```
-
-The type schema is defined in [`src/lib/io/scene.capnp`](src/lib/io/scene.capnp) (Cap'n Proto). Full Cap'n Proto binary encoding is planned once `capnpc-ts` supports TypeScript 6.
 
 ## Project Structure
 
@@ -93,277 +129,121 @@ The type schema is defined in [`src/lib/io/scene.capnp`](src/lib/io/scene.capnp)
 src/
   components/
     layout/       # MenuBar, LeftSidebar, RightSidebar, StatusBar
-    panels/       # ObjectTree, LayerPanel, MaterialPanel, AssemblyPanel,
-                  # ComponentPanel, AnnotationPanel, SnapshotPanel, LightingPanel
+    panels/       # ObjectTree, LayerPanel, MaterialPanel, BOMPanel, AssemblyPanel,
+                  # ComponentPanel, AnnotationPanel, SnapshotPanel, LightingPanel,
+                  # CatalogPanel, ToolPanel, ParametricPanel, StylesPanel, PluginsPanel
     viewport/     # Viewport (canvas host, event handling)
-    overlay/      # ShortcutModal, OnboardingOverlay
-  hooks/          # useKeyboard
+    overlay/      # ShortcutModal, OnboardingOverlay, ShareModal, ScenePickerModal
+  hooks/          # useKeyboard, useElectronMenu
   lib/
-    scene/        # SceneManager (Three.js renderer, sync, post-processing)
+    scene/        # SceneManager (Three.js renderer, sync, post-processing, WebXR)
     geometry/     # Primitives builder
     csg/          # Boolean operations (three-bvh-csg)
-    materials/    # Material presets library
+    materials/    # Material presets library (with Smart Material metadata)
     rendering/    # PostProcessor (EffectComposer chain)
-    tools/        # SnapEngine, push-pull tool
-    io/           # sceneSerializer (JSON), capnpSerializer (binary), scene.capnp
-  store/          # sceneStore, toolStore, uiStore (Zustand)
+    tools/        # SnapEngine, DrawEngine, InferenceEngine, MeasureEngine
+    io/           # sceneSerializer, capnpSerializer, ifcExporter, svgExporter, modelImporter
+    storage/      # localAdapter, dbAdapter, fs adapter
+    collaboration/# CollabManager (Y.js + WebRTC)
+    formula/      # Parametric expression evaluator
+    plugins/      # PluginHost (Web Worker sandbox)
+  store/          # sceneStore, toolStore, uiStore, collabStore, pluginStore (Zustand)
   types/          # Shared TypeScript interfaces
+electron/         # Electron main process, native menus, IPC
+sdk/              # @crabcad/sdk — TypeScript plugin SDK
+api/              # Express 5 + Prisma 6 REST API (for self-hosted mode)
 ```
 
 ## Roadmap
 
-### Near-term
-- [x] Rendering upgrades — tone mapping (ACES/Reinhard/Cineon/Linear), bloom, environment presets (Studio/Outdoor/Sunset/City), background color; HDRI file import and path tracing remain
-- [x] Styles — edge overlay, flat shading, x-ray, gradient background, five one-click style presets (Default/Sketchy/Flat/X-Ray/Blueprint)
-- [x] Parametric modeling — named parameters with formula expressions drive object dimensions; ordered dependency chain; safe evaluator with math functions
-- [x] Configuration system — user preferences persisted to localStorage, preferences modal, export/import config, keybinding overrides
+### Implemented
 
-### Platform
-- [x] Plugin system — sandboxed Web Worker plugins with `api.scene.*` surface, `registerTool()`, `log()`; built-in examples; install from file
-- [ ] SDK — TypeScript SDK (`@crabcad/sdk`) for building plugins and integrations; `definePlugin()` helper with full type safety; published as an npm package
-- [x] Versioning — named scene checkpoints (`Ctrl+Shift+S`), diff view (added/removed/modified), restore with undo safety
-- [x] Electron app — desktop wrapper with native file dialogs (save/open via OS dialog), native app menu, cross-platform builds (dmg/nsis/AppImage) via electron-builder
-- [ ] Universal updater — auto-update across Electron and future desktop targets; designed to be shared across multiple apps (architecture TBD)
-- [ ] SketchUp importer — parse `.skp` files and convert geometry + materials into the CrabCAD scene graph
-- [ ] Material & component library — shared library of PBR materials and reusable component definitions; cloud-synced or self-hosted
-- [ ] Line styles — parallel, dashed, dotted, chain; configurable width and spacing per edge group
-- [ ] Section view — named cross-section cuts along any axis or custom plane, exportable as 2D drawings
+- [x] Primitives (Box, Sphere, Cylinder, Cone) with live dimension editing
+- [x] Push/Pull face extrusion
+- [x] Boolean CSG (Union, Subtract, Intersect)
+- [x] Transform Gizmo (Translate, Rotate, Scale)
+- [x] Box selection, Groups, Components, Assemblies
+- [x] Mirror and Array tools
+- [x] Drawing tools — Draw, Arc, Polygon, Eraser
+- [x] Tape Measure and Protractor with overlay labels
+- [x] Smart Snapping — vertex, midpoint, face-center, edge-point, angle snap
+- [x] Inference guides (X/Y/Z axis lines while drawing)
+- [x] Object Tree with visibility, lock, rename, delete
+- [x] Layer system — create, rename, delete, visibility, color
+- [x] 23 PBR material presets + custom material creator
+- [x] Custom materials with texture image import
+- [x] **Smart Materials** — physical metadata (SKU, cost, unit of measure, coverage) on materials
+- [x] **Smart Components** — SKU, manufacturer, unit cost on component definitions
+- [x] **Takeoff / BOM Panel** — quantity takeoff from surface areas + component counts, CSV export
+- [x] Component Catalog — 7 categories, 39+ items including 2D floor plan shapes
+- [x] 2D floor plan items — materials, furniture, hardware, appliances
+- [x] Styles — edge overlay, flat shading, X-ray, gradient background, 5 presets
+- [x] Post-processing — bloom, outline, Sobel edge, ambient occlusion
+- [x] Tone mapping (ACES, Reinhard, Cineon, Linear) + exposure
+- [x] Environment presets (Studio, Outdoor, Sunset, City) + HDRI import
+- [x] Section cuts (X/Y/Z + angle offset)
+- [x] Annotations (text + dimension labels, CSS2DRenderer)
+- [x] Camera snapshots
+- [x] Parametric modeling — named parameters with formula expressions
+- [x] Versioning / history checkpoints with diff view
+- [x] Real-time collaboration (Y.js + WebRTC)
+- [x] Plugin system (sandboxed Web Workers)
+- [x] GLTF / OBJ / STL / IFC export
+- [x] SVG 2D orthographic export (Top/Front/Right/all views)
+- [x] 3D import (GLTF, GLB, OBJ, STL)
+- [x] Share links with viewer/editor permissions
+- [x] Screenshot (1×/2×/4×)
+- [x] WebXR (VR/AR)
+- [x] Electron desktop app with native file dialogs
+- [x] Docker Compose self-hosting setup
+- [x] Storage adapters (localStorage, filesystem, Prisma + PostgreSQL)
+- [x] Keyboard shortcuts + shortcut reference modal
+- [x] Onboarding wizard
+- [x] Autosave to localStorage
 
-### Modeling (future)
-- [ ] Agentic drawing — natural-language scene generation with a pluggable LLM backend; OpenLlama as the default open-source model; bring your own API key or local inference server
-- [ ] Rename project — current working title "CrabCAD"; candidates: **Forja** (forge, strong creative connotation), **Facet** (geometric, minimal), **Chisel** (precise tool metaphor), **Lattice** (structural, architectural), **Manifold** (mathematical 3D term); to be decided
+### In Progress / Near-term
 
-### Trust & transparency
-- [ ] Transparency Manifest — machine-readable declaration of every browser API and capability the app uses; covers: localStorage, sessionStorage, Web Workers, WebGL, IndexedDB, cookies, Service Workers, fetch/XHR, WebSockets, WebRTC, Clipboard, File System Access, plugin sandbox permissions; surfaced in the UI so users and auditors can inspect exactly what the app touches before and after loading a plugin
+- [ ] **Follow Me tool** — sweep a face profile along a selected path (requires edge/path selection)
+- [ ] **Draw-on-face** — auto-fill enclosed polyline drawn on an existing face into a new face mesh
+- [ ] **Eraser for edges/faces** — currently deletes whole objects; needs sub-object selection mode
+- [ ] **IFC import** — round-trip IFC 2x3/4 loading into the scene graph (export done, import pending)
+- [ ] **First-person walk-through** — WASD + mouse-look navigation mode for interior walkthroughs
+- [ ] **Interactive 2D layout view** — orthographic top-down canvas mode with room labels and dimensions overlay
 
-### Collaboration
-- [x] Real-time collaboration — multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
-- [ ] Self-hosting — Docker Compose (local), Encore, and Crossplane/Minikube deployment targets; storage adapter (filesystem / browser localStorage / Prisma + PostgreSQL)
-- [ ] Share & control permissions — invite links, read-only vs editor roles, per-room access control list
-- [ ] Collaboration history — per-user change log, revert to any point
+### Platform / Future
 
-### Geospatial
-- [ ] Map import — drop in a base map tile (Google Maps, Leaflet, OpenStreetMap) as a scene floor plane
-- [ ] ArcGIS support — import GIS layers (shapefiles, feature services) as 3D geometry and metadata
+- [ ] **SketchUp importer** — parse `.skp` files and convert geometry + materials
+- [ ] **SDK npm package** — publish `@crabcad/sdk` to npm for third-party plugin development
+- [ ] **Universal updater** — auto-update across Electron and future desktop targets
+- [ ] **Component library tagging/search** — tag catalog items, search by name or category
+- [ ] **Agentic drawing** — natural-language scene generation with pluggable LLM backend
+- [ ] **Map import** — drop in a base map tile (OSM / Google Maps) as a scene floor plane
+- [ ] **ArcGIS support** — import GIS layers (shapefiles, feature services) as 3D geometry
+- [ ] **Transparency Manifest** — machine-readable declaration of every browser API the app uses
+- [ ] **Collaboration history** — per-user change log, revert to any point
+- [ ] **Cap'n Proto binary encoding** — full capnp binary once `capnpc-ts` supports TypeScript 6
 
 ## Self-Hosting
 
-CrabCAD is designed to run entirely in the browser (no server required) and can also be deployed on-premises with a backend for persistent scene storage, multi-user auth, and collaboration relay. Three deployment targets are provided:
+CrabCAD works entirely in the browser (no server required) and can also be deployed with a backend for persistent storage, multi-user auth, and collaboration relay.
 
 ### Storage adapters
 
-Three storage backends implement the same `saveScene / loadScene / listScenes` interface. Selected at build time via `VITE_STORAGE`.
+| Adapter | `VITE_STORAGE` | When to use |
+|---------|---------------|-------------|
+| **Browser localStorage** | `local` *(default)* | Single-user, offline, Electron |
+| **Filesystem** | `fs` | Electron / Node CLI / CI |
+| **Database (Prisma)** | `db` | Multi-user, self-hosted |
 
-| Adapter | `VITE_STORAGE` | When to use | Implementation |
-|---------|---------------|-------------|----------------|
-| **Browser localStorage** | `local` *(default)* | Single-user, offline, Electron | `localStorage` for autosave + prefs; `.crab` binary downloads for explicit save/open |
-| **Filesystem** | `fs` | Electron / Node CLI / CI pipelines | Native file-system via Electron's `dialog` IPC or Node `fs`; no server required |
-| **Database (Prisma)** | `db` | Multi-user, self-hosted, team collaboration | Prisma ORM → PostgreSQL; scenes stored as `Bytes` blobs; full migration history |
-
-The adapter shim lives in `api/storage/`. Swapping backends requires only changing `VITE_STORAGE` — no application code changes.
-
----
-
-### Docker Compose (local)
-
-The simplest self-hosted setup — a single `docker-compose.yml` runs the static frontend behind nginx, a lightweight Node API server, and a PostgreSQL database.
-
-```yaml
-# docker-compose.yml
-services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: crab
-      POSTGRES_PASSWORD: crab
-      POSTGRES_DB: crabcad
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  api:
-    build: ./api
-    environment:
-      DATABASE_URL: postgresql://crab:crab@db:5432/crabcad
-      VITE_STORAGE: db
-    depends_on: [db]
-    ports: ["3001:3001"]
-
-  web:
-    build: .
-    environment:
-      VITE_API_URL: http://api:3001
-      VITE_STORAGE: db
-    ports: ["8080:80"]
-    depends_on: [api]
-
-volumes:
-  pgdata:
-```
+### Docker Compose
 
 ```bash
 docker compose up -d
 # App at http://localhost:8080
+# Run migrations: docker compose exec api npx prisma migrate deploy
 ```
 
-Schema is managed by Prisma migrations (`api/prisma/schema.prisma`; same schema as the Encore target). Run `docker compose exec api npx prisma migrate deploy` on first start.
-
----
-
-### Encore (managed cloud)
-
-[Encore](https://encore.dev) provides type-safe services with zero-config deployments. The `encore/` directory contains the backend service definition using **Prisma** as the ORM ([Encore + Prisma docs](https://encore.dev/docs/ts/develop/orms/prisma)).
-
-```prisma
-// encore/prisma/schema.prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model Scene {
-  id        String   @id @default(cuid())
-  name      String
-  data      Bytes
-  ownerId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Plugin {
-  id       String @id @default(cuid())
-  name     String
-  version  String
-  code     String
-  manifest Json
-}
-```
-
-```typescript
-// encore/scenes/scenes.ts
-import { api } from "encore.dev/api"
-import { PrismaClient } from "@prisma/client"
-
-const prisma = new PrismaClient()
-
-export const saveScene = api(
-  { method: "POST", path: "/scenes/:id", auth: true },
-  async ({ id, name, data }: { id: string; name: string; data: string }) => {
-    const bytes = Buffer.from(data, "base64")
-    await prisma.scene.upsert({
-      where: { id },
-      create: { id, name, data: bytes },
-      update: { name, data: bytes },
-    })
-    return { ok: true }
-  }
-)
-
-export const loadScene = api(
-  { method: "GET", path: "/scenes/:id", auth: true },
-  async ({ id }: { id: string }) => {
-    const scene = await prisma.scene.findUniqueOrThrow({ where: { id } })
-    return { name: scene.name, data: scene.data.toString("base64") }
-  }
-)
-
-export const listScenes = api(
-  { method: "GET", path: "/scenes", auth: true },
-  async () => {
-    const scenes = await prisma.scene.findMany({
-      select: { id: true, name: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
-    })
-    return { scenes }
-  }
-)
-```
-
-```bash
-# Local development (Encore spins up Postgres automatically)
-encore run
-
-# Apply Prisma migrations
-npx prisma migrate dev --schema encore/prisma/schema.prisma
-
-# Deploy to Encore Cloud or self-hosted runner
-encore deploy
-```
-
----
-
-### Crossplane / Minikube (Kubernetes)
-
-For teams running Kubernetes, the `k8s/` directory provides Crossplane composite resource definitions that provision a PostgreSQL instance alongside the CrabCAD deployment.
-
-```yaml
-# k8s/crossplane/crabcad-xrd.yaml
-apiVersion: apiextensions.crossplane.io/v1
-kind: CompositeResourceDefinition
-metadata:
-  name: xcrabcadinstances.crabcad.io
-spec:
-  group: crabcad.io
-  names:
-    kind: XCrabCADInstance
-  versions:
-    - name: v1alpha1
-      served: true
-      referenceable: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          properties:
-            spec:
-              type: object
-              properties:
-                storageGB: { type: integer, default: 10 }
-                replicas:  { type: integer, default: 1 }
-```
-
-```yaml
-# k8s/crossplane/composition.yaml  (excerpt)
-resources:
-  - name: postgresql
-    base:
-      apiVersion: postgresql.cnpg.io/v1
-      kind: Cluster
-      spec:
-        instances: 1
-        storage:
-          size: 10Gi
-  - name: crabcad-deployment
-    base:
-      apiVersion: apps/v1
-      kind: Deployment
-      spec:
-        template:
-          spec:
-            containers:
-              - name: api
-                image: ghcr.io/elaous/crab-api:latest
-                env:
-                  - name: VITE_STORAGE
-                    value: db
-```
-
-```bash
-# Local with Minikube
-minikube start
-kubectl apply -f k8s/crossplane/
-
-# Claim an instance
-kubectl apply -f k8s/crossplane/claim.yaml
-```
-
-Full manifests (Deployment, Service, Ingress, ConfigMap, HorizontalPodAutoscaler) are in [`k8s/`](k8s/).
-
----
-
-> **Note:** The `api/`, `encore/`, and `k8s/` directories are planned. The Prisma schema above is the authoritative data model shared across all three deployment targets. The browser-only build works today with no backend required (`VITE_STORAGE=local`).
+See `docker-compose.yml` for full configuration (nginx + Node API + PostgreSQL).
 
 ## License
 

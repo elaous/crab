@@ -37,6 +37,11 @@ export interface ComponentDef {
   objects: SceneObject[]   // geometry relative to the def's local origin
   origin: Vec3             // local origin offset
   color: string
+  // Smart component physical metadata
+  sku?: string
+  manufacturer?: string
+  unitCost?: number
+  category?: string        // e.g. 'Appliances', 'Furniture', 'Hardware'
 }
 
 export interface Assembly {
@@ -186,6 +191,19 @@ export interface MaterialPreset {
   icon?: string
   textureDataUrl?: string  // base64 image for custom presets
   custom?: boolean
+  // Smart material physical metadata
+  sku?: string
+  manufacturer?: string
+  unitCost?: number        // cost per unit
+  unitOfMeasure?: 'sqm' | 'sqft' | 'unit' | 'linear_m' | 'linear_ft'
+  coveragePerUnit?: number // sqm per unit (for tiles, flooring, paint)
+}
+
+export interface SmartComponentMeta {
+  sku?: string
+  manufacturer?: string
+  unitCost?: number
+  unitOfMeasure?: 'unit' | 'sqm' | 'linear_m'
 }
 
 export interface SceneData {
