@@ -133,9 +133,12 @@ src/
 - [ ] Agentic drawing — natural-language scene generation with a pluggable LLM backend; OpenLlama as the default open-source model; bring your own API key or local inference server
 - [ ] Rename project — current working title "CrabCAD"; candidates: **Forja** (forge, strong creative connotation), **Facet** (geometric, minimal), **Chisel** (precise tool metaphor), **Lattice** (structural, architectural), **Manifold** (mathematical 3D term); to be decided
 
+### Trust & transparency
+- [ ] Transparency Manifest — machine-readable declaration of every browser API and capability the app uses; covers: localStorage, sessionStorage, Web Workers, WebGL, IndexedDB, cookies, Service Workers, fetch/XHR, WebSockets, WebRTC, Clipboard, File System Access, plugin sandbox permissions; surfaced in the UI so users and auditors can inspect exactly what the app touches before and after loading a plugin
+
 ### Collaboration
 - [x] Real-time collaboration — multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
-- [ ] Self-hosting — Docker Compose (local), Encore, and Crossplane/Minikube deployment targets; storage abstraction (browser localStorage ↔ Prisma-backed database)
+- [ ] Self-hosting — Docker Compose (local), Encore, and Crossplane/Minikube deployment targets; storage adapter (filesystem / browser localStorage / Prisma + PostgreSQL)
 - [ ] Share & control permissions — invite links, read-only vs editor roles, per-room access control list
 - [ ] Collaboration history — per-user change log, revert to any point
 
@@ -147,14 +150,17 @@ src/
 
 CrabCAD is designed to run entirely in the browser (no server required) and can also be deployed on-premises with a backend for persistent scene storage, multi-user auth, and collaboration relay. Three deployment targets are provided:
 
-### Storage abstraction
+### Storage adapters
 
-| Mode | When to use | Implementation |
-|------|-------------|----------------|
-| `localStore` | Single-user / offline / Electron | Browser localStorage + `.crab` file downloads (default) |
-| `database` | Multi-user / self-hosted | Prisma ORM → PostgreSQL; scenes stored as binary blobs |
+Three storage backends implement the same `saveScene / loadScene / listScenes` interface. Selected at build time via `VITE_STORAGE`.
 
-The storage adapter is selected at build time via `VITE_STORAGE=local` (default) or `VITE_STORAGE=db`. The `api/` layer exposes the same `saveScene / loadScene / listScenes` interface regardless of backend.
+| Adapter | `VITE_STORAGE` | When to use | Implementation |
+|---------|---------------|-------------|----------------|
+| **Browser localStorage** | `local` *(default)* | Single-user, offline, Electron | `localStorage` for autosave + prefs; `.crab` binary downloads for explicit save/open |
+| **Filesystem** | `fs` | Electron / Node CLI / CI pipelines | Native file-system via Electron's `dialog` IPC or Node `fs`; no server required |
+| **Database (Prisma)** | `db` | Multi-user, self-hosted, team collaboration | Prisma ORM → PostgreSQL; scenes stored as `Bytes` blobs; full migration history |
+
+The adapter shim lives in `api/storage/`. Swapping backends requires only changing `VITE_STORAGE` — no application code changes.
 
 ---
 
@@ -199,47 +205,91 @@ docker compose up -d
 # App at http://localhost:8080
 ```
 
-Schema is managed by Prisma migrations (`api/prisma/schema.prisma`). Run `docker compose exec api npx prisma migrate deploy` on first start.
+Schema is managed by Prisma migrations (`api/prisma/schema.prisma`; same schema as the Encore target). Run `docker compose exec api npx prisma migrate deploy` on first start.
 
 ---
 
 ### Encore (managed cloud)
 
-[Encore](https://encore.dev) provides type-safe services with zero-config deployments. The `encore/` directory contains the backend service definition.
+[Encore](https://encore.dev) provides type-safe services with zero-config deployments. The `encore/` directory contains the backend service definition using **Prisma** as the ORM ([Encore + Prisma docs](https://encore.dev/docs/ts/develop/orms/prisma)).
+
+```prisma
+// encore/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Scene {
+  id        String   @id @default(cuid())
+  name      String
+  data      Bytes
+  ownerId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Plugin {
+  id       String @id @default(cuid())
+  name     String
+  version  String
+  code     String
+  manifest Json
+}
+```
 
 ```typescript
 // encore/scenes/scenes.ts
 import { api } from "encore.dev/api"
-import { SQLDatabase } from "encore.dev/storage/sqldb"
+import { PrismaClient } from "@prisma/client"
 
-const db = new SQLDatabase("crabcad", { migrations: "./migrations" })
+const prisma = new PrismaClient()
 
-export const saveScene = api({ method: "POST", path: "/scenes" },
-  async (req: { id: string; name: string; data: string }) => {
-    await db.exec`
-      INSERT INTO scenes (id, name, data, updated_at)
-      VALUES (${req.id}, ${req.name}, ${req.data}, NOW())
-      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
-        data = EXCLUDED.data, updated_at = NOW()
-    `
+export const saveScene = api(
+  { method: "POST", path: "/scenes/:id", auth: true },
+  async ({ id, name, data }: { id: string; name: string; data: string }) => {
+    const bytes = Buffer.from(data, "base64")
+    await prisma.scene.upsert({
+      where: { id },
+      create: { id, name, data: bytes },
+      update: { name, data: bytes },
+    })
     return { ok: true }
   }
 )
 
-export const loadScene = api({ method: "GET", path: "/scenes/:id" },
+export const loadScene = api(
+  { method: "GET", path: "/scenes/:id", auth: true },
   async ({ id }: { id: string }) => {
-    const row = await db.queryRow`SELECT data FROM scenes WHERE id = ${id}`
-    if (!row) throw new Error("Scene not found")
-    return { data: row.data as string }
+    const scene = await prisma.scene.findUniqueOrThrow({ where: { id } })
+    return { name: scene.name, data: scene.data.toString("base64") }
+  }
+)
+
+export const listScenes = api(
+  { method: "GET", path: "/scenes", auth: true },
+  async () => {
+    const scenes = await prisma.scene.findMany({
+      select: { id: true, name: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+    })
+    return { scenes }
   }
 )
 ```
 
 ```bash
-# Local development
+# Local development (Encore spins up Postgres automatically)
 encore run
 
-# Deploy to Encore Cloud (or self-hosted Encore runner)
+# Apply Prisma migrations
+npx prisma migrate dev --schema encore/prisma/schema.prisma
+
+# Deploy to Encore Cloud or self-hosted runner
 encore deploy
 ```
 
@@ -313,7 +363,7 @@ Full manifests (Deployment, Service, Ingress, ConfigMap, HorizontalPodAutoscaler
 
 ---
 
-> **Note:** The `api/`, `encore/`, and `k8s/` directories and the Prisma schema are planned — the browser-only build works today with no backend required.
+> **Note:** The `api/`, `encore/`, and `k8s/` directories are planned. The Prisma schema above is the authoritative data model shared across all three deployment targets. The browser-only build works today with no backend required (`VITE_STORAGE=local`).
 
 ## License
 
