@@ -1,8 +1,10 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 import { useToolStore } from '../../store/toolStore'
+import { useCollabStore } from '../../store/collabStore'
 import { SceneManager } from '../../lib/scene/SceneManager'
 import { viewportBus } from '../../lib/viewportBus'
+import { CollabCursors, CollabPresence } from '../overlay/CollabOverlay'
 import type { MousePosition3D, BoxDims } from '../../types'
 
 interface CtxMenu { visible: boolean; x: number; y: number; targetId: string | null }
@@ -19,6 +21,8 @@ export function Viewport() {
 
   const store = useSceneStore()
   const toolStore = useToolStore()
+  const publishCursor = useCollabStore(s => s.publishCursor)
+  const collabConnected = useCollabStore(s => s.isConnected)
   const {
     objects, layers, selectedIds, annotations, componentDefs,
     viewMode, viewPreset, settings,
@@ -274,6 +278,17 @@ export function Viewport() {
     pushpull: 'cell',
   }[activeTool]
 
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!collabConnected) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    publishCursor({ xPct: (e.clientX - rect.left) / rect.width, yPct: (e.clientY - rect.top) / rect.height })
+  }, [collabConnected, publishCursor])
+
+  const handlePointerLeave = useCallback(() => {
+    if (collabConnected) publishCursor(null)
+  }, [collabConnected, publishCursor])
+
   return (
     <div
       ref={containerRef}
@@ -284,6 +299,8 @@ export function Viewport() {
         ref={canvasRef}
         className="viewport-canvas"
         style={{ cursor: toolCursor }}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
       />
 
       {/* View mode / preset badge */}
@@ -340,6 +357,10 @@ export function Viewport() {
           }}
         />
       )}
+
+      {/* Collab cursors + presence */}
+      <CollabCursors />
+      <CollabPresence />
 
       {/* Context menu */}
       {ctxMenu.visible && (

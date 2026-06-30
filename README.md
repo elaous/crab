@@ -44,7 +44,10 @@ npm run build    # production build
 - **PBR Materials** — 23 presets across 6 categories (Wood, Stone, Metal, Plastic, Glass, Other)
 - **Material Sliders** — Roughness, metalness, opacity, base color per object
 - **Display Modes** — Shaded, Wireframe, Rendered
-- **Post-Processing** — Outline pass, Sobel edge detection, ambient occlusion toggle
+- **Post-Processing** — Outline pass, Sobel edge detection, bloom (UnrealBloomPass)
+- **Tone Mapping** — None, Linear, Reinhard, Cineon, ACES Filmic; exposure control
+- **Environment Presets** — Studio (RoomEnvironment), Outdoor, Sunset, City (procedural Sky + PMREMGenerator)
+- **Background Control** — Custom background color with fog sync
 - **Sun Controls** — Azimuth, elevation, intensity; soft shadows
 
 ### Documentation & Collaboration
@@ -110,7 +113,7 @@ src/
 ## Roadmap
 
 ### Near-term
-- [ ] Rendering upgrades — HDRI environment maps, path tracing, caustics
+- [x] Rendering upgrades — tone mapping (ACES/Reinhard/Cineon/Linear), bloom, environment presets (Studio/Outdoor/Sunset/City), background color; HDRI file import and path tracing remain
 - [ ] Styles — viewport rendering styles (edge display, face modes, sketchy lines, watermarks, background gradients)
 - [ ] Parametric modeling — formula-driven dimensions, constraint fields
 - [ ] Configuration system — user preferences, workspace layouts, keybinding overrides
@@ -119,9 +122,10 @@ src/
 - [ ] Plugin system — sandboxed JS plugins with a stable API surface for custom tools, importers, and panels
 - [ ] SDK — TypeScript SDK for building plugins and integrations; published as an npm package
 - [ ] Versioning — scene version history with named checkpoints and diff view
+- [ ] Electron app — desktop wrapper with native file dialogs, OS integration, and offline-first support
 
 ### Collaboration
-- [ ] Real-time collaboration — multiplayer cursors, shared state over WebSocket
+- [ ] Real-time collaboration — multiplayer cursors, shared state via Y.js + WebRTC (peer-to-peer, no server required)
 - [ ] Collaboration history — per-user change log, revert to any point
 
 ### Geospatial

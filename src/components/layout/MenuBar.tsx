@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
+import { useCollabStore } from '../../store/collabStore'
 import {
   serialize, deserialize, downloadSTL, downloadCSV, autosave,
 } from '../../lib/io/sceneSerializer'
@@ -9,15 +10,23 @@ import { viewportBus } from '../../lib/viewportBus'
 import { useUIStore } from '../../store/uiStore'
 import type { BooleanOp } from '../../types'
 
+function randomRoomId() {
+  const words = ['atlas', 'birch', 'cedar', 'delta', 'ember', 'fjord', 'grove', 'haven', 'inlet', 'jetty']
+  return words[Math.floor(Math.random() * words.length)] + '-' + Math.floor(Math.random() * 9000 + 1000)
+}
+
 type MenuItem =
   | { type: 'sep' }
   | { label: string; shortcut?: string; action?: () => void; disabled?: boolean; type?: undefined }
 
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [collabOpen, setCollabOpen] = useState(false)
+  const [roomInput, setRoomInput] = useState(() => randomRoomId())
   const { setShortcutsOpen, setOnboardingOpen } = useUIStore()
   const barRef = useRef<HTMLDivElement>(null)
   const store = useSceneStore()
+  const collab = useCollabStore()
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -253,6 +262,103 @@ export function MenuBar() {
       <span className="text-slate-400 text-xs">
         {store.sceneName}{store.isDirty ? ' *' : ''}
       </span>
+
+      {/* Live collaboration button */}
+      <button
+        className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium transition-colors
+          ${collab.isConnected
+            ? 'bg-green-700 text-green-100 hover:bg-green-600'
+            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+        onClick={() => setCollabOpen(true)}
+        title={collab.isConnected ? `Room: ${collab.roomId}` : 'Start live collaboration'}
+      >
+        <div className={`w-1.5 h-1.5 rounded-full ${collab.isConnected ? 'bg-green-300 animate-pulse' : 'bg-slate-500'}`} />
+        {collab.isConnected ? `Live · ${1 + collab.peers.size}` : 'Live'}
+      </button>
+
+      {/* Collab modal */}
+      {collabOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setCollabOpen(false) }}
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-5 w-80 shadow-2xl">
+            <div className="text-sm font-semibold text-white mb-4">
+              {collab.isConnected ? 'Live Session' : 'Start Live Collaboration'}
+            </div>
+
+            {collab.isConnected ? (
+              <>
+                <div className="text-xs text-slate-400 mb-1">Room code</div>
+                <div className="font-mono text-sm text-green-400 bg-slate-800 rounded px-3 py-2 mb-3 select-all">
+                  {collab.roomId}
+                </div>
+                <div className="text-xs text-slate-500 mb-4">
+                  Share this code with collaborators. Anyone who enters it joins your session.
+                </div>
+                <div className="text-xs text-slate-400 mb-2">Online ({1 + collab.peers.size})</div>
+                <div className="space-y-1 mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: collab.localColor }} />
+                    <span className="text-xs text-white">{collab.localName} (you)</span>
+                  </div>
+                  {Array.from(collab.peers.values()).map(p => (
+                    <div key={p.clientId} className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
+                      <span className="text-xs text-slate-300">{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="w-full text-xs py-1.5 rounded bg-red-800 text-red-200 hover:bg-red-700 transition-colors"
+                  onClick={() => { collab.leave(); setCollabOpen(false) }}
+                >
+                  Leave Session
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-xs text-slate-400 mb-1">Your name</div>
+                <input
+                  className="prop-input w-full mb-3 text-sm"
+                  value={collab.localName}
+                  onChange={e => collab.setLocalName(e.target.value)}
+                  placeholder="Display name"
+                />
+                <div className="text-xs text-slate-400 mb-1">Room code</div>
+                <input
+                  className="prop-input w-full mb-1 text-sm font-mono"
+                  value={roomInput}
+                  onChange={e => setRoomInput(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                  placeholder="room-code"
+                />
+                <div className="text-xs text-slate-500 mb-4">
+                  Create a new room or enter an existing code to join.
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className="flex-1 text-xs py-1.5 rounded bg-blue-700 text-white hover:bg-blue-600 transition-colors"
+                    onClick={() => {
+                      if (roomInput.trim()) {
+                        collab.join(roomInput.trim())
+                        setCollabOpen(false)
+                      }
+                    }}
+                  >
+                    Join / Create
+                  </button>
+                  <button
+                    className="text-xs px-3 py-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                    onClick={() => setCollabOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

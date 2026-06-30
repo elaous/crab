@@ -151,6 +151,10 @@ interface SceneState {
   setDirty: (v: boolean) => void
   newScene: () => void
   loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[], assemblies?: Assembly[], componentDefs?: ComponentDef[]) => void
+
+  // Remote collaboration sync — bypass history and collab echo
+  _remoteSetObject: (id: string, obj: SceneObject) => void
+  _remoteDeleteObject: (id: string) => void
 }
 
 let objectCounter = 1
@@ -797,6 +801,20 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       historyIndex: -1,
     })
   },
+
+  _remoteSetObject: (id, obj) => set(state => {
+    const objects = new Map(state.objects)
+    objects.set(id, obj)
+    return { objects }
+  }),
+
+  _remoteDeleteObject: (id) => set(state => {
+    const objects = new Map(state.objects)
+    const selectedIds = new Set(state.selectedIds)
+    objects.delete(id)
+    selectedIds.delete(id)
+    return { objects, selectedIds }
+  }),
 
   loadScene: (objects, layers, layerOrder, settings, annotations, assemblies, componentDefs) => {
     const objMap = new Map(objects.map(o => [o.id, o]))
