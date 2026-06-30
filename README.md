@@ -111,6 +111,7 @@ src/
 
 ### Near-term
 - [ ] Rendering upgrades — HDRI environment maps, path tracing, caustics
+- [ ] Styles — viewport rendering styles (edge display, face modes, sketchy lines, watermarks, background gradients)
 - [ ] Parametric modeling — formula-driven dimensions, constraint fields
 - [ ] Configuration system — user preferences, workspace layouts, keybinding overrides
 
