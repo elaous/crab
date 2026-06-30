@@ -5,7 +5,7 @@ import { deserializeGeometry } from '../csg/BooleanOps'
 const SEGMENTS = 32
 
 export function createGeometry(
-  type: Exclude<PrimitiveType, 'csg'>,
+  type: Exclude<PrimitiveType, 'csg' | 'component-instance'>,
   dims: SceneObject['dimensions'],
 ): THREE.BufferGeometry {
   switch (type) {
@@ -31,7 +31,11 @@ export function createGeometry(
 function getGeometry(obj: SceneObject): THREE.BufferGeometry {
   if (obj.type === 'csg') {
     if (obj.csgData) return deserializeGeometry(obj.csgData)
-    return new THREE.BoxGeometry(1, 1, 1) // fallback
+    return new THREE.BoxGeometry(1, 1, 1)
+  }
+  if (obj.type === 'component-instance') {
+    // Instances are rendered by SceneManager.buildInstanceGroup; fallback placeholder
+    return new THREE.BoxGeometry(0.5, 0.5, 0.5)
   }
   return createGeometry(obj.type, obj.dimensions)
 }

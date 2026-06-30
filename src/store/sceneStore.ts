@@ -4,7 +4,7 @@ import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
   PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims,
   ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData,
-  Annotation, Assembly,
+  Annotation, Assembly, ComponentDef,
 } from '../types'
 
 const DEFAULT_LAYER: Layer = {
@@ -33,6 +33,15 @@ const DEFAULT_SETTINGS: SceneSettings = {
   sectionEnabled: false,
   sectionAxis: 'y' as const,
   sectionOffset: 0,
+  toneMapping: 'aces' as const,
+  exposure: 1.0,
+  bloomEnabled: false,
+  bloomStrength: 0.4,
+  bloomRadius: 0.4,
+  bloomThreshold: 0.85,
+  envPreset: 'studio' as const,
+  envIntensity: 1.0,
+  bgColor: '#16213e',
 }
 
 const LAYER_COLORS = [
@@ -47,6 +56,7 @@ function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | Co
     case 'cylinder': return { radius: 0.5, height: 1 }
     case 'cone': return { radius: 0.5, height: 1 }
     case 'csg': return {}
+    case 'component-instance': return {}
   }
 }
 
@@ -58,6 +68,8 @@ interface SceneState {
   layerOrder: string[]
   assemblies: Map<string, Assembly>
   assemblyOrder: string[]
+  componentDefs: Map<string, ComponentDef>
+  componentDefOrder: string[]
   selectedIds: Set<string>
   activeLayerId: string
   settings: SceneSettings
@@ -92,6 +104,14 @@ interface SceneState {
 
   // Boolean operations
   booleanOp: (idA: string, idB: string, op: BooleanOp, csgData: CSGGeometryData) => void
+
+  // Component definitions
+  createComponentFromSelected: (name?: string) => string | null
+  instantiateComponent: (defId: string, position?: Partial<Vec3>) => string
+  updateComponentDef: (defId: string, patch: Partial<Omit<ComponentDef, 'id'>>) => void
+  deleteComponentDef: (defId: string) => void
+  renameComponentDef: (defId: string, name: string) => void
+  explodeInstance: (instanceId: string) => void
 
   // Assemblies
   createAssembly: (name?: string, objectIds?: string[]) => string
@@ -130,7 +150,11 @@ interface SceneState {
   setSceneName: (name: string) => void
   setDirty: (v: boolean) => void
   newScene: () => void
-  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[], assemblies?: Assembly[]) => void
+  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[], assemblies?: Assembly[], componentDefs?: ComponentDef[]) => void
+
+  // Remote collaboration sync — bypass history and collab echo
+  _remoteSetObject: (id: string, obj: SceneObject) => void
+  _remoteDeleteObject: (id: string) => void
 }
 
 let objectCounter = 1
@@ -139,7 +163,12 @@ const ASSEMBLY_COLORS = [
   '#f472b6', '#a78bfa', '#34d399', '#fb923c', '#38bdf8', '#facc15',
 ]
 
+const COMPONENT_COLORS = [
+  '#e879f9', '#818cf8', '#2dd4bf', '#f97316', '#06b6d4', '#eab308',
+]
+
 let assemblyCounter = 1
+let componentCounter = 1
 
 export const useSceneStore = create<SceneState>((set, get) => ({
   sceneName: 'Untitled',
@@ -149,6 +178,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   layerOrder: ['default'],
   assemblies: new Map(),
   assemblyOrder: [],
+  componentDefs: new Map(),
+  componentDefOrder: [],
   selectedIds: new Set(),
   activeLayerId: 'default',
   settings: DEFAULT_SETTINGS,
@@ -378,6 +409,171 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })
   },
 
+  createComponentFromSelected: (name) => {
+    const { selectedIds, objects, activeLayerId, componentDefs } = get()
+    if (selectedIds.size === 0) return null
+    const id = uuidv4()
+    const color = COMPONENT_COLORS[componentCounter % COMPONENT_COLORS.length]
+    const defName = name ?? `Component ${componentCounter++}`
+
+    // Collect selected objects; compute centroid as the def origin
+    const selected = [...selectedIds].map(sid => objects.get(sid)).filter(Boolean) as SceneObject[]
+    const centroid: Vec3 = {
+      x: selected.reduce((s, o) => s + o.position.x, 0) / selected.length,
+      y: selected.reduce((s, o) => s + o.position.y, 0) / selected.length,
+      z: selected.reduce((s, o) => s + o.position.z, 0) / selected.length,
+    }
+    // Store objects relative to centroid
+    const relObjects: SceneObject[] = selected.map(o => ({
+      ...o,
+      id: uuidv4(),
+      position: { x: o.position.x - centroid.x, y: o.position.y - centroid.y, z: o.position.z - centroid.z },
+    }))
+
+    const def: ComponentDef = { id, name: defName, objects: relObjects, origin: centroid, color }
+    void componentDefs
+
+    // Replace selected objects with one instance placed at centroid
+    const instanceId = uuidv4()
+    const instance: SceneObject = {
+      id: instanceId,
+      name: defName,
+      type: 'component-instance',
+      layerId: activeLayerId,
+      visible: true,
+      locked: false,
+      color,
+      opacity: 1,
+      roughness: 0.7,
+      metalness: 0.1,
+      position: centroid,
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+      dimensions: {},
+      metadata: {},
+      componentDefId: id,
+    }
+
+    get().pushHistory()
+    set(state => {
+      const newObjects = new Map(state.objects)
+      selectedIds.forEach(sid => newObjects.delete(sid))
+      newObjects.set(instanceId, instance)
+      const newDefs = new Map(state.componentDefs)
+      newDefs.set(id, def)
+      return {
+        objects: newObjects,
+        componentDefs: newDefs,
+        componentDefOrder: [...state.componentDefOrder, id],
+        selectedIds: new Set([instanceId]),
+        isDirty: true,
+      }
+    })
+    return id
+  },
+
+  instantiateComponent: (defId, position) => {
+    const { componentDefs, activeLayerId } = get()
+    const def = componentDefs.get(defId)
+    if (!def) return ''
+    const instanceId = uuidv4()
+    const instance: SceneObject = {
+      id: instanceId,
+      name: def.name,
+      type: 'component-instance',
+      layerId: activeLayerId,
+      visible: true,
+      locked: false,
+      color: def.color,
+      opacity: 1,
+      roughness: 0.7,
+      metalness: 0.1,
+      position: { x: position?.x ?? def.origin.x, y: position?.y ?? def.origin.y, z: position?.z ?? def.origin.z },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+      dimensions: {},
+      metadata: {},
+      componentDefId: defId,
+    }
+    set(state => {
+      const objects = new Map(state.objects)
+      objects.set(instanceId, instance)
+      return { objects, selectedIds: new Set([instanceId]), isDirty: true }
+    })
+    get().pushHistory()
+    return instanceId
+  },
+
+  updateComponentDef: (defId, patch) => {
+    set(state => {
+      const defs = new Map(state.componentDefs)
+      const def = defs.get(defId)
+      if (!def) return {}
+      defs.set(defId, { ...def, ...patch })
+      return { componentDefs: defs, isDirty: true }
+    })
+  },
+
+  deleteComponentDef: (defId) => {
+    get().pushHistory()
+    set(state => {
+      const defs = new Map(state.componentDefs)
+      defs.delete(defId)
+      // Remove all instances
+      const objects = new Map(state.objects)
+      const selectedIds = new Set(state.selectedIds)
+      objects.forEach((obj, oid) => {
+        if (obj.componentDefId === defId) { objects.delete(oid); selectedIds.delete(oid) }
+      })
+      return {
+        componentDefs: defs,
+        componentDefOrder: state.componentDefOrder.filter(id => id !== defId),
+        objects,
+        selectedIds,
+        isDirty: true,
+      }
+    })
+  },
+
+  renameComponentDef: (defId, name) => {
+    set(state => {
+      const defs = new Map(state.componentDefs)
+      const def = defs.get(defId)
+      if (!def) return {}
+      defs.set(defId, { ...def, name })
+      return { componentDefs: defs, isDirty: true }
+    })
+  },
+
+  explodeInstance: (instanceId) => {
+    const { objects, componentDefs, activeLayerId } = get()
+    const instance = objects.get(instanceId)
+    if (!instance || instance.type !== 'component-instance' || !instance.componentDefId) return
+    const def = componentDefs.get(instance.componentDefId)
+    if (!def) return
+    get().pushHistory()
+    set(state => {
+      const newObjects = new Map(state.objects)
+      newObjects.delete(instanceId)
+      const newIds: string[] = []
+      def.objects.forEach(relObj => {
+        const newId = uuidv4()
+        newIds.push(newId)
+        newObjects.set(newId, {
+          ...relObj,
+          id: newId,
+          layerId: instance.layerId ?? activeLayerId,
+          position: {
+            x: (relObj.position.x * instance.scale.x) + instance.position.x,
+            y: (relObj.position.y * instance.scale.y) + instance.position.y,
+            z: (relObj.position.z * instance.scale.z) + instance.position.z,
+          },
+        })
+      })
+      return { objects: newObjects, selectedIds: new Set(newIds), isDirty: true }
+    })
+  },
+
   createAssembly: (name, objectIds = []) => {
     const id = uuidv4()
     const { assemblyOrder } = get()
@@ -586,6 +782,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   newScene: () => {
     objectCounter = 1
     assemblyCounter = 1
+    componentCounter = 1
     set({
       sceneName: 'Untitled',
       isDirty: false,
@@ -594,6 +791,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       layerOrder: ['default'],
       assemblies: new Map(),
       assemblyOrder: [],
+      componentDefs: new Map(),
+      componentDefOrder: [],
       selectedIds: new Set(),
       activeLayerId: 'default',
       snapshots: [],
@@ -603,12 +802,28 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })
   },
 
-  loadScene: (objects, layers, layerOrder, settings, annotations, assemblies) => {
+  _remoteSetObject: (id, obj) => set(state => {
+    const objects = new Map(state.objects)
+    objects.set(id, obj)
+    return { objects }
+  }),
+
+  _remoteDeleteObject: (id) => set(state => {
+    const objects = new Map(state.objects)
+    const selectedIds = new Set(state.selectedIds)
+    objects.delete(id)
+    selectedIds.delete(id)
+    return { objects, selectedIds }
+  }),
+
+  loadScene: (objects, layers, layerOrder, settings, annotations, assemblies, componentDefs) => {
     const objMap = new Map(objects.map(o => [o.id, o]))
     const layerMap = new Map(layers.map(l => [l.id, l]))
     const annMap = new Map((annotations ?? []).map((a: Annotation) => [a.id, a]))
     const asmList = assemblies ?? []
     const asmMap = new Map(asmList.map((a: Assembly) => [a.id, a]))
+    const defList = componentDefs ?? []
+    const defMap = new Map(defList.map((d: ComponentDef) => [d.id, d]))
     set({
       objects: objMap,
       layers: layerMap,
@@ -617,6 +832,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       annotations: annMap,
       assemblies: asmMap,
       assemblyOrder: asmList.map((a: Assembly) => a.id),
+      componentDefs: defMap,
+      componentDefOrder: defList.map((d: ComponentDef) => d.id),
       selectedIds: new Set(),
       history: [],
       historyIndex: -1,

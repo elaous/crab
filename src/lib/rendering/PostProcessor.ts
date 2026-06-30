@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { SobelOperatorShader } from 'three/addons/shaders/SobelOperatorShader.js'
 import { LuminosityShader } from 'three/addons/shaders/LuminosityShader.js'
 
@@ -12,6 +13,7 @@ export class PostProcessor {
   outlinePass: OutlinePass
   lumPass: ShaderPass
   sobelPass: ShaderPass
+  bloomPass: UnrealBloomPass
   outputPass: OutputPass
   renderPass: RenderPass
   width: number
@@ -57,6 +59,16 @@ export class PostProcessor {
     this.sobelPass.enabled = false
     this.composer.addPass(this.sobelPass)
 
+    // Bloom — disabled by default
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(width, height),
+      0.4,   // strength
+      0.4,   // radius
+      0.85,  // threshold
+    )
+    this.bloomPass.enabled = false
+    this.composer.addPass(this.bloomPass)
+
     // Final output with color correction
     this.outputPass = new OutputPass()
     this.composer.addPass(this.outputPass)
@@ -76,11 +88,19 @@ export class PostProcessor {
     this.sobelPass.enabled = enabled
   }
 
+  setBloom(enabled: boolean, strength: number, radius: number, threshold: number) {
+    this.bloomPass.enabled = enabled
+    this.bloomPass.strength = strength
+    this.bloomPass.radius = radius
+    this.bloomPass.threshold = threshold
+  }
+
   resize(width: number, height: number) {
     this.width = width
     this.height = height
     this.composer.setSize(width, height)
     this.sobelPass.uniforms['resolution'].value.set(width, height)
+    this.bloomPass.resolution.set(width, height)
   }
 
   render() {

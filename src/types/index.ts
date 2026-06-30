@@ -1,10 +1,14 @@
-export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'csg'
+export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'csg' | 'component-instance'
 
 export type ViewMode = 'perspective' | 'orthographic'
 
 export type ViewPreset = 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'iso'
 
 export type DisplayMode = 'wireframe' | 'shaded' | 'rendered'
+
+export type ToneMapping = 'none' | 'linear' | 'reinhard' | 'cineon' | 'aces'
+
+export type EnvPreset = 'none' | 'studio' | 'outdoor' | 'sunset' | 'city'
 
 export type ToolMode = 'select' | 'move' | 'rotate' | 'scale'
 
@@ -22,6 +26,15 @@ export interface CSGGeometryData {
   indices: number[]
 }
 
+export interface ComponentDef {
+  id: string
+  name: string
+  description?: string
+  objects: SceneObject[]   // geometry relative to the def's local origin
+  origin: Vec3             // local origin offset
+  color: string
+}
+
 export interface Assembly {
   id: string
   name: string
@@ -35,6 +48,7 @@ export interface SceneObject {
   type: PrimitiveType
   layerId: string
   assemblyId?: string
+  componentDefId?: string  // set when type === 'component-instance'
   visible: boolean
   locked: boolean
   color: string
@@ -100,6 +114,16 @@ export interface SceneSettings {
   sectionEnabled: boolean
   sectionAxis: 'x' | 'y' | 'z'
   sectionOffset: number // world units
+  // Rendering upgrades
+  toneMapping: ToneMapping
+  exposure: number        // 0.1–3
+  bloomEnabled: boolean
+  bloomStrength: number   // 0–3
+  bloomRadius: number     // 0–1
+  bloomThreshold: number  // 0–1
+  envPreset: EnvPreset
+  envIntensity: number    // 0–2
+  bgColor: string         // hex background color
 }
 
 export type AnnotationType = 'label' | 'dimension'
@@ -131,6 +155,7 @@ export interface SceneData {
   objects: SceneObject[]
   layers: Layer[]
   assemblies?: Assembly[]
+  componentDefs?: ComponentDef[]
   settings: SceneSettings
   snapshots: CameraSnapshot[]
   annotations: Annotation[]

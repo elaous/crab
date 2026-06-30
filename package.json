@@ -16,7 +16,10 @@
     "@types/three": "^0.185.0",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.5.2",
+    "capnp-ts": "^0.7.0",
+    "capnpc-ts": "^0.7.0",
     "hotkeys-js": "^4.0.4",
+    "msgpackr": "^2.0.4",
     "postcss": "^8.5.16",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -25,6 +28,8 @@
     "three-bvh-csg": "^0.0.18",
     "three-mesh-bvh": "^0.9.10",
     "uuid": "^14.0.1",
+    "y-webrtc": "^10.3.0",
+    "yjs": "^13.6.31",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

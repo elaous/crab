@@ -4,12 +4,14 @@ import { LayerPanel } from '../panels/LayerPanel'
 import { AnnotationPanel } from '../panels/AnnotationPanel'
 import { SnapshotPanel } from '../panels/SnapshotPanel'
 import { AssemblyPanel } from '../panels/AssemblyPanel'
+import { ComponentPanel } from '../panels/ComponentPanel'
 
-type Tab = 'objects' | 'groups' | 'layers' | 'notes' | 'views'
+type Tab = 'objects' | 'groups' | 'components' | 'layers' | 'notes' | 'views'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'objects', label: 'Objects' },
   { id: 'groups', label: 'Groups' },
+  { id: 'components', label: 'Comps' },
   { id: 'layers', label: 'Layers' },
   { id: 'notes', label: 'Notes' },
   { id: 'views', label: 'Views' },
@@ -37,6 +39,7 @@ export function LeftSidebar() {
       <div className="flex-1 overflow-hidden">
         {tab === 'objects' && <ObjectTree />}
         {tab === 'groups' && <AssemblyPanel />}
+        {tab === 'components' && <ComponentPanel />}
         {tab === 'layers' && <LayerPanel />}
         {tab === 'notes' && <AnnotationPanel />}
         {tab === 'views' && <SnapshotPanel />}
