@@ -1,7 +1,10 @@
+import { useRef } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
+import { viewportBus } from '../../lib/viewportBus'
 
 export function LightingPanel() {
   const { settings, updateSettings } = useSceneStore()
+  const hdriInputRef = useRef<HTMLInputElement>(null)
 
   const sliders: {
     label: string
@@ -20,6 +23,38 @@ export function LightingPanel() {
     { label: 'Sobel Edge', key: 'sobelEnabled' },
     { label: 'Ambient Occlusion', key: 'aoEnabled' },
   ]
+
+  const handleHDRI = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    viewportBus.emit({ type: 'setHDRI', url })
+  }
+
+  const handleScreenshot = (scale: number) => {
+    if (scale === 1) {
+      viewportBus.emit({
+        type: 'captureImage',
+        callback: (dataUrl) => {
+          const a = document.createElement('a')
+          a.href = dataUrl
+          a.download = 'screenshot.png'
+          a.click()
+        },
+      })
+    } else {
+      viewportBus.emit({
+        type: 'captureHighRes',
+        scale,
+        callback: (dataUrl) => {
+          const a = document.createElement('a')
+          a.href = dataUrl
+          a.download = `screenshot_${scale}x.png`
+          a.click()
+        },
+      })
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -188,6 +223,24 @@ export function LightingPanel() {
               onChange={e => updateSettings({ envIntensity: parseFloat(e.target.value) })}
             />
           </div>
+
+          {/* HDRI Upload */}
+          <div className="mt-2">
+            <div className="text-xs text-slate-500 mb-1">HDRI Upload (.hdr / .exr)</div>
+            <button
+              className="w-full text-xs py-1 px-2 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors text-left"
+              onClick={() => hdriInputRef.current?.click()}
+            >
+              Choose HDRI file…
+            </button>
+            <input
+              ref={hdriInputRef}
+              type="file"
+              accept=".hdr,.exr"
+              className="hidden"
+              onChange={handleHDRI}
+            />
+          </div>
         </div>
 
         <div className="border-t border-slate-700" />
@@ -275,6 +328,50 @@ export function LightingPanel() {
               )}
             </>
           )}
+        </div>
+
+        <div className="border-t border-slate-700" />
+
+        {/* Screenshot */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Screenshot</div>
+          <div className="flex flex-col gap-1">
+            {([
+              { label: 'Screenshot (current)', scale: 1 },
+              { label: 'Screenshot 2x', scale: 2 },
+              { label: 'Screenshot 4x', scale: 4 },
+            ]).map(({ label, scale }) => (
+              <button
+                key={scale}
+                className="text-xs py-1 px-2 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors text-left"
+                onClick={() => handleScreenshot(scale)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-slate-700" />
+
+        {/* WebXR */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">WebXR</div>
+          <div className="flex gap-1">
+            <button
+              className="flex-1 text-xs py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-indigo-700 transition-colors"
+              onClick={() => viewportBus.emit({ type: 'enterXR', mode: 'vr' })}
+            >
+              Enter VR
+            </button>
+            <button
+              className="flex-1 text-xs py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-teal-700 transition-colors"
+              onClick={() => viewportBus.emit({ type: 'enterXR', mode: 'ar' })}
+            >
+              Enter AR
+            </button>
+          </div>
+          <div className="text-xs text-slate-600 mt-1">Requires WebXR-compatible browser &amp; headset</div>
         </div>
 
       </div>

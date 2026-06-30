@@ -4,6 +4,10 @@ export type ViewportAction =
   | { type: 'captureImage'; callback: (dataUrl: string) => void }
   | { type: 'saveSnapshot'; name: string }
   | { type: 'restoreSnapshot'; snapshotId: string }
+  | { type: 'setHDRI'; url: string }
+  | { type: 'captureHighRes'; scale: number; callback: (dataUrl: string) => void }
+  | { type: 'exportSVG'; view: 'top' | 'front' | 'right' | 'all'; sceneName: string }
+  | { type: 'enterXR'; mode: 'vr' | 'ar' }
 
 type Listener = (action: ViewportAction) => void
 const listeners = new Set<Listener>()

@@ -4,8 +4,9 @@ import { useToolStore } from '../../store/toolStore'
 import { useCollabStore } from '../../store/collabStore'
 import { SceneManager } from '../../lib/scene/SceneManager'
 import { viewportBus } from '../../lib/viewportBus'
+import { exportSVG2D, downloadSVG } from '../../lib/io/svgExporter'
 import { CollabCursors, CollabPresence } from '../overlay/CollabOverlay'
-import type { MousePosition3D, BoxDims } from '../../types'
+import type { MousePosition3D, BoxDims, Vec3 } from '../../types'
 
 interface CtxMenu { visible: boolean; x: number; y: number; targetId: string | null }
 interface BoxSelect { start: { x: number; y: number }; end: { x: number; y: number } }
@@ -19,6 +20,11 @@ export function Viewport() {
   const [dimInput, setDimInput] = useState('')
   const dimInputRef = useRef<HTMLInputElement>(null)
 
+  // New overlay states
+  const [drawHint, setDrawHint] = useState<number>(0) // count of placed draw points
+  const [measureInfo, setMeasureInfo] = useState<{ distance: number } | null>(null)
+  const [protractorInfo, setProtractorInfo] = useState<{ angle: number } | null>(null)
+
   const store = useSceneStore()
   const toolStore = useToolStore()
   const publishCursor = useCollabStore(s => s.publishCursor)
@@ -30,7 +36,7 @@ export function Viewport() {
     removeObjects, duplicateObjects, updateObject, selectAll,
     addSnapshot,
   } = store
-  const { activeTool, isPushPullDragging, setDimensionDisplay, setIsPushPullDragging } = toolStore
+  const { activeTool, isPushPullDragging, setDimensionDisplay, setIsPushPullDragging, setMeasureDistance, setMeasureAngle, setDrawPoints } = toolStore
 
   // Current push/pull target
   const pushPullRef = useRef<{
@@ -110,6 +116,25 @@ export function Viewport() {
     if (ids.length === 0) deselectAll()
   }, [selectObject, deselectAll])
 
+  const onMeasureComplete = useCallback((distance: number, _points: [Vec3, Vec3]) => {
+    setMeasureDistance(distance)
+    setMeasureInfo({ distance })
+  }, [setMeasureDistance])
+
+  const onProtractorComplete = useCallback((angle: number, _points: [Vec3, Vec3, Vec3]) => {
+    setMeasureAngle(angle)
+    setProtractorInfo({ angle })
+  }, [setMeasureAngle])
+
+  const onErase = useCallback((id: string) => {
+    removeObjects([id])
+  }, [removeObjects])
+
+  const onDrawPoint = useCallback((pts: Vec3[]) => {
+    setDrawPoints(pts)
+    setDrawHint(pts.length)
+  }, [setDrawPoints])
+
   // Init SceneManager
   useEffect(() => {
     const canvas = canvasRef.current
@@ -117,6 +142,7 @@ export function Viewport() {
     const mgr = new SceneManager(canvas, {
       onSelect, onMouseMove3D, onContextMenu,
       onTransformChange, onPushPullProgress, onPushPullCommit, onBoxSelect,
+      onMeasureComplete, onProtractorComplete, onErase, onDrawPoint,
     })
     managerRef.current = mgr
 
@@ -148,6 +174,10 @@ export function Viewport() {
 
   useEffect(() => {
     managerRef.current?.setTool(activeTool)
+    // Clear overlays on tool change
+    if (activeTool !== 'measure') setMeasureInfo(null)
+    if (activeTool !== 'protractor') setProtractorInfo(null)
+    if (activeTool !== 'draw') setDrawHint(0)
   }, [activeTool])
 
   useEffect(() => {
@@ -241,6 +271,9 @@ export function Viewport() {
         case 'captureImage':
           action.callback(mgr.captureImage())
           break
+        case 'captureHighRes':
+          action.callback(mgr.captureHighRes(action.scale))
+          break
         case 'saveSnapshot': {
           const state = mgr.getCameraState()
           addSnapshot({ ...state, name: action.name })
@@ -251,10 +284,38 @@ export function Viewport() {
           if (snap) mgr.restoreSnapshot(snap)
           break
         }
+        case 'setHDRI':
+          mgr.setHDRI(action.url)
+          break
+        case 'exportSVG': {
+          const svgStr = exportSVG2D(store.objects, action.view)
+          downloadSVG(store.objects, action.view, action.sceneName + '_' + action.view)
+          void svgStr
+          break
+        }
+        case 'enterXR':
+          mgr.enterXR(action.mode)
+          break
       }
     })
     return off
-  }, [addSnapshot, store.snapshots])
+  }, [addSnapshot, store.snapshots, store.objects])
+
+  // Esc key handler to cancel draw/clear measure
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const mgr = managerRef.current
+        if (!mgr) return
+        mgr.commitDraw() // cancel (returns empty if needed)
+        setDrawHint(0)
+        setMeasureInfo(null)
+        setProtractorInfo(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // Handle exact dimension input during push/pull
   const applyExactDim = () => {
@@ -282,13 +343,20 @@ export function Viewport() {
 
   const closeCtxMenu = () => setCtxMenu(m => ({ ...m, visible: false }))
 
-  const toolCursor = {
+  const toolCursorMap: Record<string, string> = {
     select: 'crosshair',
     move: 'move',
     rotate: 'cell',
     scale: 'se-resize',
     pushpull: 'cell',
-  }[activeTool]
+    draw: 'crosshair',
+    arc: 'crosshair',
+    polygon: 'crosshair',
+    eraser: 'cell',
+    measure: 'crosshair',
+    protractor: 'crosshair',
+  }
+  const toolCursor = toolCursorMap[activeTool] ?? 'default'
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!collabConnected) return
@@ -354,6 +422,47 @@ export function Viewport() {
             }}
             autoFocus
           />
+        </div>
+      )}
+
+      {/* Draw hint overlay */}
+      {activeTool === 'draw' && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded bg-black/60 text-slate-300 pointer-events-none">
+          {drawHint === 0
+            ? 'Click to start drawing a line'
+            : `${drawHint} point${drawHint !== 1 ? 's' : ''} placed — Double-click to finish · Esc to cancel`
+          }
+        </div>
+      )}
+
+      {/* Measure overlay */}
+      {activeTool === 'measure' && measureInfo && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 text-sm px-4 py-2 rounded bg-black/70 text-yellow-300 pointer-events-none font-mono">
+          Distance: {measureInfo.distance.toFixed(3)} m
+        </div>
+      )}
+      {activeTool === 'measure' && !measureInfo && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded bg-black/60 text-slate-300 pointer-events-none">
+          Click two points to measure distance
+        </div>
+      )}
+
+      {/* Protractor overlay */}
+      {activeTool === 'protractor' && protractorInfo && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 text-sm px-4 py-2 rounded bg-black/70 text-yellow-300 pointer-events-none font-mono">
+          Angle: {protractorInfo.angle.toFixed(1)}°
+        </div>
+      )}
+      {activeTool === 'protractor' && !protractorInfo && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded bg-black/60 text-slate-300 pointer-events-none">
+          Click 3 points: center, then two arms
+        </div>
+      )}
+
+      {/* Eraser hint */}
+      {activeTool === 'eraser' && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded bg-black/60 text-slate-300 pointer-events-none">
+          Click an object to erase it
         </div>
       )}
 
