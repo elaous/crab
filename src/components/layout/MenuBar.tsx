@@ -333,7 +333,7 @@ export function MenuBar() {
         { label: 'Keyboard Shortcuts', shortcut: '?', action: () => { setShortcutsOpen(true); close() } },
         { label: 'Getting Started', action: () => { setOnboardingOpen(true); close() } },
         { type: 'sep' as const },
-        { label: 'About CrabCAD', action: () => { alert('CrabCAD — Open-source 3D modeling suite\nBuilt with Three.js, React, TypeScript'); close() } },
+        { label: 'About Facet 3D', action: () => { alert('Facet 3D — Open-source 3D modeling suite\nBuilt with Three.js, React, TypeScript'); close() } },
       ],
     },
   ]
@@ -344,7 +344,7 @@ export function MenuBar() {
       className="menu-bar flex items-center h-8 bg-slate-900 border-b border-slate-800 px-2 gap-1 flex-shrink-0"
     >
       {/* Logo */}
-      <span className="text-blue-400 font-bold text-sm mr-2 select-none">🦀 CrabCAD</span>
+      <span className="text-blue-400 font-bold text-sm mr-2 select-none">◈ Facet 3D</span>
 
       {menus.map(menu => (
         <div key={menu.id} className="menu-item">

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * Headless batch render — takes a .crab scene file and exports PNG screenshots.
+ * Headless batch render — takes a .facet scene file and exports PNG screenshots.
  *
  * Usage:
- *   npx tsx scripts/render.ts scene.crab [--view top|front|right|iso] [--out out.png] [--width 1920] [--height 1080]
+ *   npx tsx scripts/render.ts scene.facet [--view top|front|right|iso] [--out out.png] [--width 1920] [--height 1080]
  *
  * Requirements: chromium (PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers)
  *   npm install --save-dev playwright tsx
  *
  * The script:
- *  1. Starts the Vite dev server (or uses CRAB_URL env var for a running instance).
+ *  1. Starts the Vite dev server (or uses FACET3D_URL env var for a running instance).
  *  2. Opens the app in headless Chromium.
  *  3. Loads the scene file via the app's file-import mechanism.
  *  4. Sets the requested view preset.
@@ -30,13 +30,13 @@ function flag(name: string, fallback: string): string {
 
 const sceneFile = args.find(a => !a.startsWith('--'))
 const view      = flag('--view', 'iso') as 'top' | 'front' | 'right' | 'iso'
-const outFile   = flag('--out', sceneFile ? basename(sceneFile, '.crab') + '_' + view + '.png' : 'render.png')
+const outFile   = flag('--out', sceneFile ? basename(sceneFile, '.facet') + '_' + view + '.png' : 'render.png')
 const width     = parseInt(flag('--width', '1920'))
 const height    = parseInt(flag('--height', '1080'))
-const baseUrl   = process.env.CRAB_URL ?? 'http://localhost:5173'
+const baseUrl   = process.env.FACET3D_URL ?? 'http://localhost:5173'
 
 if (!sceneFile) {
-  console.error('Usage: npx tsx scripts/render.ts <scene.crab> [--view iso] [--out render.png] [--width 1920] [--height 1080]')
+  console.error('Usage: npx tsx scripts/render.ts <scene.facet> [--view iso] [--out render.png] [--width 1920] [--height 1080]')
   process.exit(1)
 }
 
@@ -53,9 +53,9 @@ async function waitForServer(url: string, ms = 30_000): Promise<void> {
 }
 
 ;(async () => {
-  // Start dev server if CRAB_URL not set
+  // Start dev server if FACET3D_URL not set
   let devProcess: ReturnType<typeof spawn> | null = null
-  if (!process.env.CRAB_URL) {
+  if (!process.env.FACET3D_URL) {
     console.log('Starting Vite dev server…')
     devProcess = spawn('npm', ['run', 'dev', '--', '--port', '5173'], {
       stdio: 'pipe',
@@ -90,7 +90,7 @@ async function waitForServer(url: string, ms = 30_000): Promise<void> {
       Object.defineProperty(input, 'files', { value: dt.files })
       // Dispatch a change event that the app's open handler can read
       ;(window as Window & { __headlessFile?: File }).__headlessFile = file
-      window.dispatchEvent(new CustomEvent('crab:headless-load', { detail: { file } }))
+      window.dispatchEvent(new CustomEvent('facet3d:headless-load', { detail: { file } }))
     }, [Array.from(sceneBytes), basename(sceneFile)] as [number[], string])
 
     // Wait for canvas to stabilise
@@ -98,7 +98,7 @@ async function waitForServer(url: string, ms = 30_000): Promise<void> {
 
     // Set view preset via console
     await page.evaluate((v: string) => {
-      ;(window as Window & { __crabStore?: { getState: () => { setViewPreset: (v: string) => void } } }).__crabStore?.getState().setViewPreset(v)
+      ;(window as Window & { __facet3dStore?: { getState: () => { setViewPreset: (v: string) => void } } }).__facet3dStore?.getState().setViewPreset(v)
     }, view)
 
     await page.waitForTimeout(800)

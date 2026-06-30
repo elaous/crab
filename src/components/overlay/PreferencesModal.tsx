@@ -61,7 +61,7 @@ export function PreferencesModal({ onClose }: { onClose: () => void }) {
     const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = 'crabcad-config.json'; a.click()
+    a.href = url; a.download = 'facet3d-config.json'; a.click()
     URL.revokeObjectURL(url)
   }
 

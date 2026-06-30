@@ -42,7 +42,7 @@ export function getPreset(id: string): MaterialPreset | undefined {
 
 // ─── Custom (user-created) presets ──────────────────────────────────────────
 
-const CUSTOM_KEY = 'crabcad-custom-materials'
+const CUSTOM_KEY = 'facet3d-custom-materials'
 
 export function loadCustomPresets(): MaterialPreset[] {
   try {

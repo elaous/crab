@@ -11,5 +11,5 @@ export type { PluginConfig, PluginBundle, SceneAPI, PluginAPI } from './plugin.j
 export { definePlugin, defineManifest } from './plugin.js'
 
 // External client
-export type { CrabCADClientOptions, RemotePlugin, SceneSnapshot } from './client.js'
-export { CrabCADClient } from './client.js'
+export type { Facet3DClientOptions, RemotePlugin, SceneSnapshot } from './client.js'
+export { Facet3DClient } from './client.js'

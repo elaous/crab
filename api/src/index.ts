@@ -39,7 +39,7 @@ app.get('/api/public/scenes/:token', async (req: Request, res: Response) => {
   res.send(share.scene.data)
 })
 
-// ── API routes (all require auth unless CRABCAD_AUTH=false) ──────────────────
+// ── API routes (all require auth unless FACET3D_AUTH=false) ──────────────────
 app.use('/api/scenes',                requireAuth, scenesRouter)
 app.use('/api/scenes/:sceneId/shares', requireAuth, sharesRouter)
 app.use('/api/plugins',               requireAuth, pluginsRouter)
@@ -51,6 +51,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`CrabCAD API  →  http://localhost:${PORT}`)
-  console.log(`Auth: ${process.env.CRABCAD_AUTH === 'false' ? 'disabled' : 'enabled'}`)
+  console.log(`Facet 3D API  →  http://localhost:${PORT}`)
+  console.log(`Auth: ${process.env.FACET3D_AUTH === 'false' ? 'disabled' : 'enabled'}`)
 })

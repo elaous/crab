@@ -80,7 +80,7 @@ export function openPrintLayout(opts: PrintOptions): void {
   <div class="title-block">
     <div>
       <h1>${escHtml(sceneName)}</h1>
-      <div style="font-size:9pt;color:#555;margin-top:3pt">CrabCAD Layout</div>
+      <div style="font-size:9pt;color:#555;margin-top:3pt">Facet 3D Layout</div>
     </div>
     <div class="meta">
       <div>${escHtml(author)}</div>

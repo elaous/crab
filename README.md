@@ -1,4 +1,4 @@
-# CrabCAD — Open-Source 3D Modeling Suite
+# Facet 3D — Open-Source 3D Modeling Suite
 
 A browser-based 3D modeling environment inspired by SketchUp, built with TypeScript, React, Three.js, and Zustand. Works offline with no server required; optionally self-hosted with multi-user persistence.
 
@@ -12,7 +12,7 @@ A browser-based 3D modeling environment inspired by SketchUp, built with TypeScr
 | 3D Rendering | Three.js 0.185 |
 | State | Zustand 5 |
 | Styling | Tailwind CSS v4 |
-| File Format | `.crab` — MessagePack binary |
+| File Format | `.facet` — MessagePack binary |
 | Testing | Vitest |
 
 ## Getting Started
@@ -90,7 +90,7 @@ npm run build    # production build
 - **WebXR** — Enter VR/AR mode on compatible headsets
 
 ### Import / Export
-- **Save/Load** — `.crab` binary files (MessagePack); auto-detects legacy JSON
+- **Save/Load** — `.facet` binary files (MessagePack); auto-detects legacy JSON
 - **GLTF Export** — Full scene via Three.js GLTFExporter
 - **OBJ Export** — Mesh-only via Three.js OBJExporter
 - **STL Export** — Binary STL with actual mesh triangulation
@@ -112,10 +112,10 @@ npm run build    # production build
 
 ## File Format
 
-`.crab` files use a 12-byte binary header followed by a MessagePack payload:
+`.facet` files use a 12-byte binary header followed by a MessagePack payload:
 
 ```
-[4 bytes] magic: "CRAB"
+[4 bytes] magic: "FCET" (legacy .crab files use "CRAB", still readable)
 [2 bytes] format version (uint16 LE)
 [2 bytes] flags (bit 0 = debug JSON present)
 [4 bytes] payload length (uint32 LE)
@@ -150,7 +150,7 @@ src/
   store/          # sceneStore, toolStore, uiStore, collabStore, pluginStore (Zustand)
   types/          # Shared TypeScript interfaces
 electron/         # Electron main process, native menus, IPC
-sdk/              # @crabcad/sdk — TypeScript plugin SDK
+sdk/              # @facet3d/sdk — TypeScript plugin SDK
 api/              # Express 5 + Prisma 6 REST API (for self-hosted mode)
 ```
 
@@ -211,7 +211,7 @@ api/              # Express 5 + Prisma 6 REST API (for self-hosted mode)
 - [x] **Interactive 2D Layout view** — SVG top-down floor plan panel (tab "2D") with scroll-to-zoom, middle-drag pan, dimension labels, click-to-select
 - [x] **Component catalog search** — name filter input in Catalog tab (already existed, now fully visible with cross-category search)
 - [x] **Import from 3D Warehouse URL** — paste any public .glb/.gltf URL; File → Import from 3D Warehouse URL
-- [x] **Headless CLI render** — `scripts/render.ts` (Playwright + headless Chromium): `npx tsx scripts/render.ts scene.crab --view iso --out render.png`
+- [x] **Headless CLI render** — `scripts/render.ts` (Playwright + headless Chromium): `npx tsx scripts/render.ts scene.facet --view iso --out render.png`
 - [x] **Align to Face** — hover over a surface, click "Align to Face" in Geometry Ops to snap selected object to that position
 - [x] **Sub-object face selection** — `faceselect` tool (F2) highlights individual triangular faces with blue overlay; selects parent object; hover preview
 - [x] **Torus & Helix primitives** — curved geometry via `THREE.TorusGeometry` and custom CatmullRom + `THREE.ExtrudeGeometry` helix builder
@@ -230,7 +230,7 @@ api/              # Express 5 + Prisma 6 REST API (for self-hosted mode)
 
 - [ ] **Import price sheet** — load a CSV of SKU / unit-cost rows and link each to a Smart Material or Smart Component definition automatically
 - [ ] **SketchUp importer** — parse `.skp` binary format and convert geometry + materials; investigate Trimble SDK bridge
-- [ ] **SDK npm package** — publish `@crabcad/sdk` to npm for third-party plugin development
+- [ ] **SDK npm package** — publish `@facet3d/sdk` to npm for third-party plugin development
 - [ ] **Universal updater** — auto-update across Electron and future desktop targets
 - [ ] **Agentic drawing** — natural-language scene generation with pluggable LLM backend
 - [ ] **ArcGIS support** — import GIS layers (shapefiles, feature services) as 3D geometry
@@ -247,7 +247,7 @@ api/              # Express 5 + Prisma 6 REST API (for self-hosted mode)
 
 ## Self-Hosting
 
-CrabCAD works entirely in the browser (no server required) and can also be deployed with a backend for persistent storage, multi-user auth, and collaboration relay.
+Facet 3D works entirely in the browser (no server required) and can also be deployed with a backend for persistent storage, multi-user auth, and collaboration relay.
 
 ### Storage adapters
 

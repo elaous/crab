@@ -1,7 +1,7 @@
 import type { StorageAdapter, SceneEntry } from './types'
 
-const PREFIX = 'crabcad-scene:'
-const INDEX_KEY = 'crabcad-scene-index'
+const PREFIX = 'facet3d-scene:'
+const INDEX_KEY = 'facet3d-scene-index'
 
 function getIndex(): SceneEntry[] {
   try { return JSON.parse(localStorage.getItem(INDEX_KEY) ?? '[]') as SceneEntry[] }

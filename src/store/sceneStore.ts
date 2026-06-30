@@ -1236,7 +1236,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
 // ─── Persistent preferences ────────────────────────────────────────────────
 
-const PREFS_KEY = 'crabcad-prefs'
+const PREFS_KEY = 'facet3d-prefs'
 
 function loadPersistedPrefs(): Partial<SceneSettings> {
   try {

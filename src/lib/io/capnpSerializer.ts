@@ -1,5 +1,5 @@
 /**
- * Binary serialization for CrabCAD scene files.
+ * Binary serialization for Facet 3D scene files.
  *
  * Schema contract: src/lib/io/scene.capnp
  *
@@ -33,7 +33,8 @@ export const DEBUG_SERIALIZATION = true   // set false for production builds
 
 // ─── Magic + constants ───────────────────────────────────────────────────────
 
-const MAGIC = new Uint8Array([0x43, 0x52, 0x41, 0x42])   // "CRAB"
+const MAGIC = new Uint8Array([0x46, 0x43, 0x45, 0x54])   // "FCET" (Facet 3D)
+const MAGIC_LEGACY = new Uint8Array([0x43, 0x52, 0x41, 0x42])   // "CRAB" (legacy, read-only compat)
 const FORMAT_VERSION = 1
 const FLAG_DEBUG_JSON = 0x0001
 
@@ -64,10 +65,11 @@ export function serializeBinary(data: SceneData): Uint8Array {
 // ─── Decode ─────────────────────────────────────────────────────────────────
 
 export function deserializeBinary(bytes: Uint8Array): SceneData {
-  // Validate magic
-  if (bytes[0] !== MAGIC[0] || bytes[1] !== MAGIC[1] ||
-      bytes[2] !== MAGIC[2] || bytes[3] !== MAGIC[3]) {
-    throw new Error('Not a CrabCAD binary file (bad magic)')
+  // Accept both "FCET" (current) and legacy "CRAB" magic for backward compat
+  const isCurrent = bytes[0] === MAGIC[0] && bytes[1] === MAGIC[1] && bytes[2] === MAGIC[2] && bytes[3] === MAGIC[3]
+  const isLegacy  = bytes[0] === MAGIC_LEGACY[0] && bytes[1] === MAGIC_LEGACY[1] && bytes[2] === MAGIC_LEGACY[2] && bytes[3] === MAGIC_LEGACY[3]
+  if (!isCurrent && !isLegacy) {
+    throw new Error('Not a Facet 3D binary file (bad magic)')
   }
   const dv = new DataView(bytes.buffer, bytes.byteOffset)
   const flags = dv.getUint16(6, true)
@@ -84,7 +86,7 @@ export function deserializeBinary(bytes: Uint8Array): SceneData {
 
 export async function downloadBinary(data: SceneData, filename: string): Promise<void> {
   const bytes = serializeBinary(data)
-  const name = filename.endsWith('.crab') ? filename : filename + '.crab'
+  const name = filename.endsWith('.facet') ? filename : filename + '.facet'
 
   if (window.electronAPI) {
     await window.electronAPI.saveFile(name, bytes)
@@ -115,7 +117,7 @@ export async function loadBinaryFromFile(): Promise<SceneData | null> {
       }
       return JSON.parse(new TextDecoder().decode(bytes)) as SceneData
     } catch {
-      alert('Invalid or corrupt CrabCAD file')
+      alert('Invalid or corrupt Facet 3D file')
       return null
     }
   }
@@ -123,7 +125,7 @@ export async function loadBinaryFromFile(): Promise<SceneData | null> {
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.crab,.json'
+    input.accept = '.facet,.json'
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) { resolve(null); return }
@@ -140,7 +142,7 @@ export async function loadBinaryFromFile(): Promise<SceneData | null> {
           resolve(JSON.parse(text) as SceneData)
         }
       } catch {
-        alert('Invalid or corrupt CrabCAD file')
+        alert('Invalid or corrupt Facet 3D file')
         resolve(null)
       }
     }

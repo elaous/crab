@@ -6,7 +6,7 @@ import type { PluginManifest } from '../../lib/plugins/types'
 
 const BUILTIN_PLUGINS: { manifest: PluginManifest; code: string }[] = [
   {
-    manifest: { name: 'Object Counter', version: '1.0.0', description: 'Counts objects in the scene', author: 'CrabCAD' },
+    manifest: { name: 'Object Counter', version: '1.0.0', description: 'Counts objects in the scene', author: 'Facet 3D' },
     code: `
 api.registerTool({
   id: 'count-objects',
@@ -17,7 +17,7 @@ api.registerTool({
 `,
   },
   {
-    manifest: { name: 'Grid Duplicator', version: '1.0.0', description: 'Duplicates selected objects in a grid', author: 'CrabCAD' },
+    manifest: { name: 'Grid Duplicator', version: '1.0.0', description: 'Duplicates selected objects in a grid', author: 'Facet 3D' },
     code: `
 api.registerTool({
   id: 'grid-duplicate',

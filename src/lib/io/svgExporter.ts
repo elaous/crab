@@ -197,7 +197,7 @@ export function exportSVG2D(
     svgBody += renderView(objects, 'top', vpW, vpH, 0, vpH)
     // bottom-right is empty / label
     svgBody += `<rect x="${vpW}" y="${vpH}" width="${vpW}" height="${vpH}" fill="#111827" stroke="#334155"/>`
-    svgBody += `<text x="${vpW + vpW / 2}" y="${vpH + vpH / 2}" text-anchor="middle" font-family="monospace" font-size="14" fill="#475569">CrabCAD 2D Export</text>`
+    svgBody += `<text x="${vpW + vpW / 2}" y="${vpH + vpH / 2}" text-anchor="middle" font-family="monospace" font-size="14" fill="#475569">Facet 3D 2D Export</text>`
   } else {
     svgBody += renderView(objects, view, totalW, totalH, 0, 0)
   }

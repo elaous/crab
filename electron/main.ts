@@ -92,7 +92,7 @@ function buildMenu(win: BrowserWindow) {
       { label: 'Keyboard Shortcuts', accelerator: '?', click: () => send('shortcuts') },
       { label: 'Getting Started',               click: () => send('onboarding') },
       { type: 'separator' },
-      { label: 'CrabCAD on GitHub', click: () => shell.openExternal('https://github.com/elaous/crab') },
+      { label: 'Facet 3D on GitHub', click: () => shell.openExternal('https://github.com/elaous/crab') },
     ],
   }
 
@@ -115,7 +115,7 @@ ipcMain.handle('dialog:saveFile', async (
 ) => {
   const { canceled, filePath } = await dialog.showSaveDialog({
     defaultPath: defaultName,
-    filters: [{ name: 'CrabCAD Scene', extensions: ['crab'] }],
+    filters: [{ name: 'Facet 3D Scene', extensions: ['facet'] }],
   })
   if (canceled || !filePath) return { canceled: true }
   writeFileSync(filePath, Buffer.from(bytes))
@@ -125,7 +125,7 @@ ipcMain.handle('dialog:saveFile', async (
 ipcMain.handle('dialog:openFile', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     filters: [
-      { name: 'CrabCAD Scene', extensions: ['crab', 'json'] },
+      { name: 'Facet 3D Scene', extensions: ['facet', 'json'] },
       { name: 'All Files',     extensions: ['*'] },
     ],
     properties: ['openFile'],

@@ -16,8 +16,8 @@ export function exportIFC(objects: Map<string, SceneObject>, sceneName: string):
 
   lines.push('ISO-10303-21;')
   lines.push('HEADER;')
-  lines.push(`FILE_DESCRIPTION(('CrabCAD Export'),'2;1');`)
-  lines.push(`FILE_NAME('${sceneName}','${now}',('CrabCAD'),('CrabCAD'),'CrabCAD','CrabCAD','');`)
+  lines.push(`FILE_DESCRIPTION(('Facet 3D Export'),'2;1');`)
+  lines.push(`FILE_NAME('${sceneName}','${now}',('Facet 3D'),('Facet 3D'),'Facet 3D','Facet 3D','');`)
   lines.push(`FILE_SCHEMA(('IFC2X3'));`)
   lines.push('ENDSEC;')
   lines.push('DATA;')
@@ -37,9 +37,9 @@ export function exportIFC(objects: Map<string, SceneObject>, sceneName: string):
   const orgId = id++
   const appId = id++
 
-  lines.push(`#${personId}=IFCPERSON($,$,'CrabCAD',$,$,$,$,$);`)
-  lines.push(`#${orgId}=IFCORGANIZATION($,'CrabCAD',$,$,$);`)
-  lines.push(`#${appId}=IFCAPPLICATION(#${orgId},'1.0','CrabCAD','CrabCAD');`)
+  lines.push(`#${personId}=IFCPERSON($,$,'Facet 3D',$,$,$,$,$);`)
+  lines.push(`#${orgId}=IFCORGANIZATION($,'Facet 3D',$,$,$);`)
+  lines.push(`#${appId}=IFCAPPLICATION(#${orgId},'1.0','Facet 3D','Facet 3D');`)
   lines.push(`#${ownerHistId}=IFCOWNERHISTORY(#${personId},#${appId},$,.ADDED.,$,#${personId},#${appId},$);`)
 
   // Geometry context

@@ -60,7 +60,7 @@ export function StatusBar() {
 
       <span className="text-slate-700">│</span>
 
-      <span className="text-slate-700">CrabCAD v1.0</span>
+      <span className="text-slate-700">Facet 3D v1.0</span>
     </div>
   )
 }
