@@ -1085,11 +1085,20 @@ export class SceneManager {
 
   // ─── Section cut ───────────────────────────────────────────────────
 
-  setSectionCut(enabled: boolean, axis: 'x' | 'y' | 'z', offset: number) {
+  setSectionCut(enabled: boolean, axis: 'x' | 'y' | 'z' | 'angle', offset: number, angleDeg = 0) {
     if (enabled) {
-      const normal = axis === 'x' ? new THREE.Vector3(-1, 0, 0) :
-                     axis === 'y' ? new THREE.Vector3(0, -1, 0) :
-                                    new THREE.Vector3(0, 0, -1)
+      let normal: THREE.Vector3
+      if (axis === 'x') {
+        normal = new THREE.Vector3(-1, 0, 0)
+      } else if (axis === 'y') {
+        normal = new THREE.Vector3(0, -1, 0)
+      } else if (axis === 'z') {
+        normal = new THREE.Vector3(0, 0, -1)
+      } else {
+        // 'angle': XY plane rotated around Y by angleDeg
+        const rad = THREE.MathUtils.degToRad(angleDeg)
+        normal = new THREE.Vector3(Math.sin(rad), 0, -Math.cos(rad)).normalize()
+      }
       this.renderer.clippingPlanes = [new THREE.Plane(normal, offset)]
     } else {
       this.renderer.clippingPlanes = []

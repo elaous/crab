@@ -226,17 +226,22 @@ export function LightingPanel() {
 
           {settings.sectionEnabled && (
             <>
-              <div className="flex gap-1 mb-2">
-                {(['x', 'y', 'z'] as const).map(ax => (
+              <div className="grid grid-cols-4 gap-1 mb-2">
+                {([
+                  { ax: 'x', label: 'YZ' },
+                  { ax: 'y', label: 'XZ' },
+                  { ax: 'z', label: 'XY' },
+                  { ax: 'angle', label: '∠' },
+                ] as const).map(({ ax, label }) => (
                   <button
                     key={ax}
-                    className={`flex-1 text-xs py-1 rounded uppercase font-mono transition-colors
+                    className={`flex-1 text-xs py-1 rounded font-mono transition-colors
                       ${settings.sectionAxis === ax
                         ? 'bg-blue-700 text-white'
                         : 'bg-slate-800 text-slate-400 hover:text-white'}`}
                     onClick={() => updateSettings({ sectionAxis: ax })}
                   >
-                    {ax}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -253,6 +258,21 @@ export function LightingPanel() {
                   onChange={e => updateSettings({ sectionOffset: parseFloat(e.target.value) })}
                 />
               </div>
+              {settings.sectionAxis === 'angle' && (
+                <div className="mb-1">
+                  <div className="flex justify-between text-xs text-slate-500 mb-1">
+                    <span>Angle</span>
+                    <span className="font-mono">{(settings.sectionAngle ?? 0).toFixed(0)}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0} max={360} step={1}
+                    value={settings.sectionAngle ?? 0}
+                    className="w-full accent-blue-500"
+                    onChange={e => updateSettings({ sectionAngle: parseFloat(e.target.value) })}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>

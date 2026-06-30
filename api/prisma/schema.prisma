@@ -12,10 +12,23 @@ model Scene {
   name      String
   data      Bytes
   ownerId   String?
+  shares    Share[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([ownerId, updatedAt(sort: Desc)])
+}
+
+model Share {
+  id         String    @id @default(cuid())
+  scene      Scene     @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  sceneId    String
+  token      String    @unique @default(cuid())
+  permission String    @default("viewer") // "viewer" | "editor" | "owner"
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([sceneId])
 }
 
 model Plugin {

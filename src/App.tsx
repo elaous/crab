@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { MenuBar } from './components/layout/MenuBar'
 import { LeftSidebar } from './components/layout/LeftSidebar'
 import { RightSidebar } from './components/layout/RightSidebar'
@@ -10,13 +10,14 @@ import { useKeyboard } from './hooks/useKeyboard'
 import { useElectronMenu } from './hooks/useElectronMenu'
 import { useSceneStore } from './store/sceneStore'
 import { loadAutosave, deserialize, autosave, serialize } from './lib/io/sceneSerializer'
-import { serializeBinary } from './lib/io/capnpSerializer'
+import { serializeBinary, deserializeBinary } from './lib/io/capnpSerializer'
 import { storage, storageMode } from './lib/storage'
 
 export default function App() {
   useKeyboard()
   useElectronMenu()
   const store = useSceneStore()
+  const [sharePermission, setSharePermission] = useState<string | null>(null)
 
   // Auto-save every 30s
   useEffect(() => {
@@ -31,6 +32,28 @@ export default function App() {
     }, 30_000)
     return () => clearInterval(id)
   }, [store])
+
+  // Load a shared scene from ?share=TOKEN in the URL
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('share')
+    if (!token) return
+    const apiBase = (import.meta.env.VITE_API_URL as string | undefined ?? '').replace(/\/$/, '')
+    const url = apiBase ? `${apiBase}/api/public/scenes/${token}` : `/api/public/scenes/${token}`
+    fetch(url)
+      .then(async res => {
+        if (!res.ok) return
+        const perm = res.headers.get('X-Share-Permission') ?? 'viewer'
+        const sceneName = decodeURIComponent(res.headers.get('X-Scene-Name') ?? 'Shared Scene')
+        const buf = await res.arrayBuffer()
+        const data = deserializeBinary(new Uint8Array(buf))
+        const { objects, layers, layerOrder, settings, annotations, assemblies, componentDefs } = deserialize(data)
+        store.loadScene(objects, layers, layerOrder, settings, annotations, assemblies, componentDefs)
+        store.setSceneName(sceneName)
+        setSharePermission(perm)
+        window.history.replaceState({}, '', window.location.pathname)
+      })
+      .catch(console.error)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore autosave on first load (local mode only)
   useEffect(() => {
@@ -69,6 +92,12 @@ export default function App() {
   return (
     <div className="flex flex-col w-full h-full">
       <MenuBar />
+      {sharePermission && (
+        <div className="flex items-center justify-center gap-3 px-4 py-1 text-xs bg-blue-950/60 border-b border-blue-800/50 text-blue-300">
+          <span>Viewing shared scene · <span className="font-semibold">{sharePermission}</span> access{sharePermission === 'viewer' && ' (read-only)'}</span>
+          <button className="text-blue-500 hover:text-blue-200 leading-none" onClick={() => setSharePermission(null)}>×</button>
+        </div>
+      )}
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar />
         <div className="flex-1 overflow-hidden relative">

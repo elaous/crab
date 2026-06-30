@@ -1,4 +1,6 @@
-export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'csg' | 'component-instance'
+export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'csg' | 'component-instance' | 'line' | 'imported'
+
+export type LineStyle = 'solid' | 'dashed' | 'dotted' | 'dot-dash' | 'double'
 
 export type ViewMode = 'perspective' | 'orthographic'
 
@@ -61,8 +63,10 @@ export interface SceneObject {
   position: Vec3
   rotation: Vec3
   scale: Vec3
-  dimensions: BoxDims | SphereDims | CylinderDims | ConeDims | Record<string, never>
+  dimensions: BoxDims | SphereDims | CylinderDims | ConeDims | LineDims | Record<string, never>
   dimensionExpressions?: Record<string, string>  // dim key → formula, e.g. { width: "wall_w * 2" }
+  lineStyle?: LineStyle
+  lineWidth?: number
   metadata: ObjectMetadata
   csgData?: CSGGeometryData
 }
@@ -78,6 +82,7 @@ export interface BoxDims { width: number; height: number; depth: number }
 export interface SphereDims { radius: number }
 export interface CylinderDims { radius: number; height: number }
 export interface ConeDims { radius: number; height: number }
+export interface LineDims { length: number }
 
 export interface ObjectMetadata {
   cost?: number
@@ -122,8 +127,9 @@ export interface SceneSettings {
   sunElevation: number  // degrees 0-90
   sunIntensity: number  // 0-3
   sectionEnabled: boolean
-  sectionAxis: 'x' | 'y' | 'z'
+  sectionAxis: 'x' | 'y' | 'z' | 'angle'
   sectionOffset: number // world units
+  sectionAngle: number  // degrees, used when sectionAxis === 'angle'
   // Rendering upgrades
   toneMapping: ToneMapping
   exposure: number        // 0.1–3

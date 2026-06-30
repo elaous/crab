@@ -191,8 +191,8 @@ export function Viewport() {
   }, [settings.sobelEnabled])
 
   useEffect(() => {
-    managerRef.current?.setSectionCut(settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset)
-  }, [settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset])
+    managerRef.current?.setSectionCut(settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset, settings.sectionAngle)
+  }, [settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset, settings.sectionAngle])
 
   useEffect(() => {
     managerRef.current?.setToneMapping(settings.toneMapping, settings.exposure)
