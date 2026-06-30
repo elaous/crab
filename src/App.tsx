@@ -10,6 +10,8 @@ import { useKeyboard } from './hooks/useKeyboard'
 import { useElectronMenu } from './hooks/useElectronMenu'
 import { useSceneStore } from './store/sceneStore'
 import { loadAutosave, deserialize, autosave, serialize } from './lib/io/sceneSerializer'
+import { serializeBinary } from './lib/io/capnpSerializer'
+import { storage, storageMode } from './lib/storage'
 
 export default function App() {
   useKeyboard()
@@ -18,17 +20,21 @@ export default function App() {
 
   // Auto-save every 30s
   useEffect(() => {
-    const id = setInterval(() => {
-      if (store.isDirty) {
-        const data = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies, store.componentDefs)
-        autosave(data)
+    const id = setInterval(async () => {
+      if (!store.isDirty) return
+      const sceneData = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies, store.componentDefs)
+      if (storageMode === 'db') {
+        await storage.save(store.sceneId, store.sceneName, serializeBinary(sceneData)).catch(console.error)
+      } else {
+        autosave(sceneData)
       }
     }, 30_000)
     return () => clearInterval(id)
   }, [store])
 
-  // Restore autosave on first load
+  // Restore autosave on first load (local mode only)
   useEffect(() => {
+    if (storageMode === 'db') return
     const saved = loadAutosave()
     if (saved) {
       const { objects, layers, layerOrder, settings, annotations, assemblies, componentDefs } = deserialize(saved)
@@ -39,11 +45,15 @@ export default function App() {
 
   // Ctrl+S
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = async (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        const data = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies, store.componentDefs)
-        autosave(data)
+        const sceneData = serialize(store.sceneName, store.objects, store.layers, store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies, store.componentDefs)
+        if (storageMode === 'db') {
+          await storage.save(store.sceneId, store.sceneName, serializeBinary(sceneData)).catch(console.error)
+        } else {
+          autosave(sceneData)
+        }
         store.setDirty(false)
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {

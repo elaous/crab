@@ -4,12 +4,15 @@ import { useCollabStore } from '../../store/collabStore'
 import {
   serialize, deserialize, downloadSTL, downloadCSV, autosave,
 } from '../../lib/io/sceneSerializer'
-import { downloadBinary, loadBinaryFromFile } from '../../lib/io/capnpSerializer'
+import { downloadBinary, loadBinaryFromFile, serializeBinary, deserializeBinary } from '../../lib/io/capnpSerializer'
 import { performBoolean } from '../../lib/csg/BooleanOps'
 import { viewportBus } from '../../lib/viewportBus'
 import { useUIStore } from '../../store/uiStore'
 import { PreferencesModal } from '../overlay/PreferencesModal'
+import { ScenePickerModal } from '../overlay/ScenePickerModal'
+import { storage, storageMode } from '../../lib/storage'
 import type { BooleanOp } from '../../types'
+import type { SceneEntry } from '../../lib/storage/types'
 
 function randomRoomId() {
   const words = ['atlas', 'birch', 'cedar', 'delta', 'ember', 'fjord', 'grove', 'haven', 'inlet', 'jetty']
@@ -23,6 +26,7 @@ type MenuItem =
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [collabOpen, setCollabOpen] = useState(false)
+  const [scenePickerOpen, setScenePickerOpen] = useState(false)
   const [roomInput, setRoomInput] = useState(() => randomRoomId())
   const { setShortcutsOpen, setOnboardingOpen, prefsOpen, setPrefsOpen } = useUIStore()
   const barRef = useRef<HTMLDivElement>(null)
@@ -40,24 +44,43 @@ export function MenuBar() {
   const toggle = (menu: string) => setOpenMenu(open => open === menu ? null : menu)
   const close = () => setOpenMenu(null)
 
-  const handleSave = () => {
-    const data = serialize(
+  const handleSave = async () => {
+    const sceneData = serialize(
       store.sceneName, store.objects, store.layers,
       store.layerOrder, store.settings, store.snapshots, store.annotations, store.assemblies, store.componentDefs,
     )
-    downloadBinary(data, store.sceneName)
-    autosave(data)
+    if (storageMode === 'db') {
+      await storage.save(store.sceneId, store.sceneName, serializeBinary(sceneData)).catch(console.error)
+    } else {
+      downloadBinary(sceneData, store.sceneName)
+      autosave(sceneData)
+    }
     store.setDirty(false)
     close()
   }
 
   const handleOpen = async () => {
+    if (storageMode === 'db') {
+      setScenePickerOpen(true)
+      close()
+      return
+    }
     const data = await loadBinaryFromFile()
     if (!data) return
     const { objects, layers, layerOrder, settings, annotations, assemblies, componentDefs } = deserialize(data)
     store.loadScene(objects, layers, layerOrder, settings, annotations, assemblies, componentDefs)
     store.setSceneName(data.name)
     close()
+  }
+
+  const handleScenePick = async (entry: SceneEntry) => {
+    setScenePickerOpen(false)
+    const result = await storage.load(entry.id).catch(console.error)
+    if (!result) return
+    const sceneData = deserializeBinary(result.bytes)
+    const { objects, layers, layerOrder, settings, annotations, assemblies, componentDefs } = deserialize(sceneData)
+    store.loadScene(objects, layers, layerOrder, settings, annotations, assemblies, componentDefs)
+    store.setSceneName(result.name)
   }
 
   const handleExportSTL = () => {
@@ -281,6 +304,14 @@ export function MenuBar() {
 
       {/* Preferences modal */}
       {prefsOpen && <PreferencesModal onClose={() => setPrefsOpen(false)} />}
+
+      {/* Scene picker (db mode) */}
+      {scenePickerOpen && (
+        <ScenePickerModal
+          onSelect={handleScenePick}
+          onClose={() => setScenePickerOpen(false)}
+        />
+      )}
 
 
       {/* Collab modal */}

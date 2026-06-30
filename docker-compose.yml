@@ -1,0 +1,56 @@
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     crab
+      POSTGRES_PASSWORD: crab
+      POSTGRES_DB:       crabcad
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crab -d crabcad"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── API server ────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://crab:crab@db:5432/crabcad
+      PORT:         3001
+      NODE_ENV:     production
+      CORS_ORIGIN:  ${CORS_ORIGIN:-*}
+      CRABCAD_AUTH: ${CRABCAD_AUTH:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Frontend (nginx) ──────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_STORAGE:  db
+        VITE_API_URL:  ""      # empty = same origin, proxied via nginx
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
