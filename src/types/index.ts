@@ -144,6 +144,18 @@ export interface SceneSettings {
   bgColorTop: string
 }
 
+export interface SceneVersion {
+  id: string
+  name: string
+  createdAt: number
+  objectCount: number
+  objects: SceneObject[]
+  layers: Layer[]
+  layerOrder: string[]
+  settings: SceneSettings
+  sceneName: string
+}
+
 export type AnnotationType = 'label' | 'dimension'
 
 export interface Annotation {
