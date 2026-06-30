@@ -43,6 +43,13 @@ const DEFAULT_SETTINGS: SceneSettings = {
   envPreset: 'studio' as const,
   envIntensity: 1.0,
   bgColor: '#16213e',
+  stylePreset: 'default' as const,
+  edgesVisible: true,
+  edgeColor: '#1e293b',
+  flatShading: false,
+  xrayMode: false,
+  bgGradient: false,
+  bgColorTop: '#0f2027',
 }
 
 const LAYER_COLORS = [

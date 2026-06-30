@@ -98,6 +98,13 @@ export class SceneManager {
   private _envTexture: THREE.Texture | null = null
   private _bgColor = '#16213e'
 
+  // Styles
+  private _bgGradient = false
+  private _edgesVisible = true
+  private _edgeColor = '#1e293b'
+  private _flatShading = false
+  private _xrayMode = false
+
   // Tool mode
   private toolMode: ToolMode = 'select'
 
@@ -279,6 +286,7 @@ export class SceneManager {
     this.orbitControls.dispose()
     this.transformControls.dispose()
     this._envTexture?.dispose()
+    if (this.scene.background instanceof THREE.CanvasTexture) this.scene.background.dispose()
     this.renderer.dispose()
     this.labelRenderer?.domElement.remove()
     this.canvas.removeEventListener('pointerdown', this.onPointerDown)
@@ -386,6 +394,7 @@ export class SceneManager {
               mat.opacity = obj.opacity
               mat.transparent = obj.opacity < 1
               mat.side = obj.opacity < 1 ? THREE.DoubleSide : THREE.FrontSide
+              child.userData.baseOpacity = obj.opacity
             }
           })
         }
@@ -469,12 +478,32 @@ export class SceneManager {
       if (child instanceof THREE.Mesh && child.name.startsWith('mesh_')) {
         const mat = child.material as THREE.MeshStandardMaterial
         mat.wireframe = this.displayMode === 'wireframe'
+
+        if (this._xrayMode && this.displayMode !== 'wireframe') {
+          mat.transparent = true
+          mat.opacity = 0.18
+          mat.depthWrite = false
+          mat.side = THREE.DoubleSide
+        } else if (!this._xrayMode) {
+          const base = (child.userData.baseOpacity as number) ?? 1
+          mat.opacity = base
+          mat.transparent = base < 1
+          mat.depthWrite = true
+          mat.side = base < 1 ? THREE.DoubleSide : THREE.FrontSide
+        }
+
+        if (this._flatShading !== mat.flatShading) {
+          mat.flatShading = this._flatShading
+          mat.needsUpdate = true
+        }
+
         if (this.displayMode === 'rendered') {
           mat.envMapIntensity = 1.0
         }
       }
       if (child instanceof THREE.LineSegments && child.name.startsWith('edges_')) {
-        child.visible = this.displayMode !== 'wireframe'
+        child.visible = this.displayMode !== 'wireframe' && this._edgesVisible
+        ;(child.material as THREE.LineBasicMaterial).color.set(this._edgeColor)
       }
     })
   }
@@ -621,8 +650,56 @@ export class SceneManager {
     this.renderer.setClearColor(new THREE.Color(color))
     const fog = this.scene.fog as THREE.Fog | null
     if (fog) fog.color.set(color)
-    if (!(this.scene.background instanceof THREE.Texture)) {
+    if (!this._bgGradient && !(this.scene.background instanceof THREE.Texture)) {
       this.scene.background = new THREE.Color(color)
+    }
+  }
+
+  setEdgeStyle(visible: boolean, color: string) {
+    this._edgesVisible = visible
+    this._edgeColor = color
+    this.objectGroups.forEach(g => this.applyDisplayMode(g))
+  }
+
+  setFlatShading(enabled: boolean) {
+    this._flatShading = enabled
+    this.objectGroups.forEach(g => this.applyDisplayMode(g))
+  }
+
+  setXrayMode(enabled: boolean) {
+    this._xrayMode = enabled
+    this.objectGroups.forEach(g => this.applyDisplayMode(g))
+  }
+
+  setBackgroundGradient(enabled: boolean, colorBottom: string, colorTop: string) {
+    this._bgGradient = enabled
+    this._bgColor = colorBottom
+    this.renderer.setClearColor(new THREE.Color(colorBottom))
+    const fog = this.scene.fog as THREE.Fog | null
+    if (fog) fog.color.set(colorBottom)
+
+    if (enabled) {
+      const canvas = document.createElement('canvas')
+      canvas.width = 2
+      canvas.height = 512
+      const ctx = canvas.getContext('2d')!
+      const grad = ctx.createLinearGradient(0, 0, 0, 512)
+      grad.addColorStop(0, colorTop)
+      grad.addColorStop(1, colorBottom)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, 2, 512)
+      if (this.scene.background instanceof THREE.CanvasTexture) {
+        this.scene.background.dispose()
+      }
+      const tex = new THREE.CanvasTexture(canvas)
+      this.scene.background = tex
+    } else {
+      if (this.scene.background instanceof THREE.CanvasTexture) {
+        this.scene.background.dispose()
+        this.scene.background = new THREE.Color(colorBottom)
+      } else if (!(this.scene.background instanceof THREE.Texture)) {
+        this.scene.background = new THREE.Color(colorBottom)
+      }
     }
   }
   setSunDirection(azimuthDeg: number, elevationDeg: number, intensity: number) {

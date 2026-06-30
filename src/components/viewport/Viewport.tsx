@@ -207,8 +207,20 @@ export function Viewport() {
   }, [settings.envPreset, settings.envIntensity])
 
   useEffect(() => {
-    managerRef.current?.setBackground(settings.bgColor)
-  }, [settings.bgColor])
+    managerRef.current?.setBackgroundGradient(settings.bgGradient, settings.bgColor, settings.bgColorTop)
+  }, [settings.bgGradient, settings.bgColor, settings.bgColorTop])
+
+  useEffect(() => {
+    managerRef.current?.setEdgeStyle(settings.edgesVisible, settings.edgeColor)
+  }, [settings.edgesVisible, settings.edgeColor])
+
+  useEffect(() => {
+    managerRef.current?.setFlatShading(settings.flatShading)
+  }, [settings.flatShading])
+
+  useEffect(() => {
+    managerRef.current?.setXrayMode(settings.xrayMode)
+  }, [settings.xrayMode])
 
   useEffect(() => {
     managerRef.current?.syncAnnotations(annotations)
