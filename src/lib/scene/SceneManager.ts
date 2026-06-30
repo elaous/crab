@@ -400,7 +400,7 @@ export class SceneManager {
         const def = componentDefs.get(obj.componentDefId)
         geoKey = `component-instance|${obj.componentDefId}|${def?.objects.length ?? 0}`
       } else {
-        geoKey = `${obj.type}|${JSON.stringify(obj.dimensions)}`
+        geoKey = `${obj.type}|${JSON.stringify(obj.dimensions)}|${obj.textureDataUrl ? 'tex' : ''}`
       }
 
       if (!this.objectGroups.has(id)) {

@@ -4,6 +4,15 @@ import { deserializeGeometry } from '../csg/geometry'
 
 const SEGMENTS = 32
 
+const _texLoader = new THREE.TextureLoader()
+const _texCache = new Map<string, THREE.Texture>()
+function getCachedTexture(dataUrl: string): THREE.Texture {
+  if (!_texCache.has(dataUrl)) {
+    _texCache.set(dataUrl, _texLoader.load(dataUrl))
+  }
+  return _texCache.get(dataUrl)!
+}
+
 export function createGeometry(
   type: Exclude<PrimitiveType, 'csg' | 'component-instance' | 'line' | 'imported'>,
   dims: SceneObject['dimensions'],
@@ -100,6 +109,10 @@ export function buildMeshGroup(obj: SceneObject, selected: boolean): THREE.Group
     opacity: obj.opacity,
     side: obj.opacity < 1 ? THREE.DoubleSide : THREE.FrontSide,
   })
+  if (obj.textureDataUrl) {
+    mat.map = getCachedTexture(obj.textureDataUrl)
+    mat.needsUpdate = true
+  }
 
   const mesh = new THREE.Mesh(geo, mat)
   mesh.name = `mesh_${obj.id}`
