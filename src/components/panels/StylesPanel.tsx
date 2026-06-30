@@ -171,6 +171,60 @@ export function StylesPanel() {
           )}
         </div>
 
+        <div className="border-t border-slate-700" />
+
+        {/* Clipping Volume */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="text-xs text-slate-500 uppercase tracking-wider">Clip Volume</div>
+            <Toggle
+              on={settings.clipVolumeEnabled ?? false}
+              onClick={() => updateSettings({ clipVolumeEnabled: !(settings.clipVolumeEnabled ?? false) })}
+            />
+          </div>
+          {settings.clipVolumeEnabled && (
+            <div className="space-y-1.5">
+              {(['x', 'y', 'z'] as const).map(axis => {
+                const minVal = (settings.clipVolumeMin ?? { x: -5, y: 0, z: -5 })[axis]
+                const maxVal = (settings.clipVolumeMax ?? { x: 5, y: 5, z: 5 })[axis]
+                return (
+                  <div key={axis} className="grid grid-cols-3 gap-1 items-center">
+                    <div className="text-xs text-slate-400 uppercase">{axis}</div>
+                    <div>
+                      <div className="text-[10px] text-slate-600 mb-0.5">Min</div>
+                      <input
+                        type="number" step={0.5}
+                        className="prop-input w-full text-xs"
+                        value={minVal}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value) || 0
+                          updateSettings({
+                            clipVolumeMin: { ...(settings.clipVolumeMin ?? { x: -5, y: 0, z: -5 }), [axis]: v },
+                          })
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-slate-600 mb-0.5">Max</div>
+                      <input
+                        type="number" step={0.5}
+                        className="prop-input w-full text-xs"
+                        value={maxVal}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value) || 0
+                          updateSettings({
+                            clipVolumeMax: { ...(settings.clipVolumeMax ?? { x: 5, y: 5, z: 5 }), [axis]: v },
+                          })
+                        }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   )

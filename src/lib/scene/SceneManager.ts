@@ -43,6 +43,8 @@ export type SceneManagerCallbacks = {
   onDrawPoint?: (pts: Vec3[]) => void
   onFollowMeCommit?: (profileId: string, pathPoints: Vec3[]) => void
   onFollowMePoint?: (profileId: string | null, pts: Vec3[]) => void
+  onFaceSelect?: (objectId: string, a: number, b: number, c: number) => void
+  onUVPick?: (objectId: string, u: number, v: number) => void
 }
 
 interface FaceInfo {
@@ -109,6 +111,10 @@ export class SceneManager {
   private faceHighlight: THREE.Mesh | null = null
   private faceSelectHighlight: THREE.Mesh | null = null
   private snapIndicator: THREE.Mesh | null = null
+  private lastFaceSelection: { objectId: string; a: number; b: number; c: number } | null = null
+  private uvPickMode = false
+  private _sectionPlanes: THREE.Plane[] = []
+  private _clipVolumePlanes: THREE.Plane[] = []
 
   // Measure state
   private measureClickA: THREE.Vector3 | null = null
@@ -1294,15 +1300,32 @@ export class SceneManager {
       return
     }
 
+    // UV pick mode — one-shot UV coordinate capture on next click
+    if (this.uvPickMode) {
+      const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (hits.length > 0 && hits[0].uv) {
+        const hit = hits[0]
+        const id = hit.object.userData.objectId as string
+        if (id) this.callbacks.onUVPick?.(id, hit.uv.x, hit.uv.y)
+      }
+      this.uvPickMode = false
+      return
+    }
+
     // Face selection tool — highlight clicked face and select parent object
     if (this.toolMode === 'faceselect') {
       const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
       if (hits.length > 0 && hits[0].face) {
         const hit = hits[0]
         const id = hit.object.userData.objectId as string
-        if (id) this.callbacks.onSelect(id, e.ctrlKey || e.metaKey || e.shiftKey)
+        if (id) {
+          this.callbacks.onSelect(id, e.ctrlKey || e.metaKey || e.shiftKey)
+          this.lastFaceSelection = { objectId: id, a: hit.face.a, b: hit.face.b, c: hit.face.c }
+          this.callbacks.onFaceSelect?.(id, hit.face.a, hit.face.b, hit.face.c)
+        }
         this.showFaceSelectHighlight(hit)
       } else {
+        this.lastFaceSelection = null
         this.clearFaceSelectHighlight()
         this.callbacks.onSelect(null, false)
       }
@@ -1588,6 +1611,27 @@ export class SceneManager {
 
   // ─── Section cut ───────────────────────────────────────────────────
 
+  startUVPick() {
+    this.uvPickMode = true
+  }
+
+  setClipVolume(enabled: boolean, min: Vec3, max: Vec3) {
+    if (!enabled) {
+      this._clipVolumePlanes = []
+    } else {
+      this.renderer.localClippingEnabled = true
+      this._clipVolumePlanes = [
+        new THREE.Plane(new THREE.Vector3(1, 0, 0), -min.x),
+        new THREE.Plane(new THREE.Vector3(-1, 0, 0), max.x),
+        new THREE.Plane(new THREE.Vector3(0, 1, 0), -min.y),
+        new THREE.Plane(new THREE.Vector3(0, -1, 0), max.y),
+        new THREE.Plane(new THREE.Vector3(0, 0, 1), -min.z),
+        new THREE.Plane(new THREE.Vector3(0, 0, -1), max.z),
+      ]
+    }
+    this.renderer.clippingPlanes = [...this._sectionPlanes, ...this._clipVolumePlanes]
+  }
+
   setSectionCut(enabled: boolean, axis: 'x' | 'y' | 'z' | 'angle', offset: number, angleDeg = 0) {
     if (enabled) {
       let normal: THREE.Vector3
@@ -1602,10 +1646,11 @@ export class SceneManager {
         const rad = THREE.MathUtils.degToRad(angleDeg)
         normal = new THREE.Vector3(Math.sin(rad), 0, -Math.cos(rad)).normalize()
       }
-      this.renderer.clippingPlanes = [new THREE.Plane(normal, offset)]
+      this._sectionPlanes = [new THREE.Plane(normal, offset)]
     } else {
-      this.renderer.clippingPlanes = []
+      this._sectionPlanes = []
     }
+    this.renderer.clippingPlanes = [...this._sectionPlanes, ...this._clipVolumePlanes]
   }
 
   // ─── Camera state ──────────────────────────────────────────────────

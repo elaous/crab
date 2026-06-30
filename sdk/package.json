@@ -27,7 +27,11 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": ["facet3d", "3d", "modeling", "plugin", "sdk"],
   "license": "MIT",

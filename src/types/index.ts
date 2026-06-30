@@ -161,6 +161,10 @@ export interface SceneSettings {
   xrayMode: boolean
   bgGradient: boolean
   bgColorTop: string
+  // Clipping volumes
+  clipVolumeEnabled?: boolean
+  clipVolumeMin?: Vec3
+  clipVolumeMax?: Vec3
 }
 
 export interface SceneVersion {

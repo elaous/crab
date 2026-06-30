@@ -187,6 +187,7 @@ interface SceneState {
   // Geometry ops
   offsetSelectedFace: (distance: number) => void
   sweepFollowMe: (profileId: string, pathPoints: Vec3[]) => void
+  deleteFace: (objectId: string, a: number, b: number, c: number) => void
 
   // Scene maintenance
   purgeUnused: () => { layers: number; materials: number; components: number }
@@ -1157,6 +1158,36 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         objs.set(id, obj)
         return { objects: objs, selectedIds: new Set([id]), isDirty: true }
       })
+    })
+  },
+
+  deleteFace: (objectId, a, b, c) => {
+    const { objects } = get()
+    const obj = objects.get(objectId)
+    if (!obj?.csgData) return
+    const { positions, normals, indices } = obj.csgData
+    // Remove the triangle whose vertex indices are (a, b, c) in any winding order
+    const newIndices: number[] = []
+    for (let i = 0; i < indices.length; i += 3) {
+      const ia = indices[i], ib = indices[i + 1], ic = indices[i + 2]
+      const match = (ia === a && ib === b && ic === c)
+        || (ia === a && ib === c && ic === b)
+        || (ia === b && ib === a && ic === c)
+        || (ia === b && ib === c && ic === a)
+        || (ia === c && ib === a && ic === b)
+        || (ia === c && ib === b && ic === a)
+      if (!match) { newIndices.push(ia, ib, ic) }
+    }
+    if (newIndices.length === indices.length) return // nothing removed
+    get().pushHistory()
+    set(state => {
+      const objs = new Map(state.objects)
+      objs.set(objectId, {
+        ...obj,
+        type: 'imported',
+        csgData: { positions, normals, indices: newIndices },
+      })
+      return { objects: objs, isDirty: true }
     })
   },
 

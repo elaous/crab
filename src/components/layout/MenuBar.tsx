@@ -16,6 +16,7 @@ import { storage, storageMode } from '../../lib/storage'
 import { importModel, openModelFilePicker } from '../../lib/io/modelImporter'
 import { exportSVG2D } from '../../lib/io/svgExporter'
 import { openPrintLayout } from '../../lib/io/printLayout'
+import { MATERIAL_PRESETS, loadCustomPresets, saveCustomPresets } from '../../lib/materials/materialLibrary'
 import type { BooleanOp } from '../../types'
 import type { SceneEntry } from '../../lib/storage/types'
 
@@ -204,6 +205,72 @@ export function MenuBar() {
 
   const hasTwoSelected = store.selectedIds.size === 2
 
+  const handleImportPriceSheet = () => {
+    close()
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      const text = await file.text()
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+      if (lines.length < 2) { alert('Price sheet CSV is empty or missing header.'); return }
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[" ]/g, ''))
+      const col = (row: string[], name: string) => {
+        const i = headers.indexOf(name)
+        return i >= 0 ? row[i]?.replace(/"/g, '').trim() : ''
+      }
+      const parsed = lines.slice(1).map(line => {
+        const row = line.split(',')
+        return {
+          sku: col(row, 'sku'),
+          name: col(row, 'name'),
+          unitCost: parseFloat(col(row, 'unit_cost') || col(row, 'unitcost') || '0') || 0,
+          unitOfMeasure: (col(row, 'unit_of_measure') || col(row, 'unitofmeasure') || 'sqm') as 'sqm' | 'sqft' | 'unit' | 'linear_m' | 'linear_ft',
+          coveragePerUnit: parseFloat(col(row, 'coverage_per_unit') || col(row, 'coverageperunit') || '1') || 1,
+        }
+      })
+
+      const customs = loadCustomPresets()
+      const allMats = [...MATERIAL_PRESETS, ...customs]
+      let matUpdates = 0
+      let compUpdates = 0
+
+      parsed.forEach(row => {
+        const preset = allMats.find(p =>
+          (row.sku && p.sku && p.sku.toLowerCase() === row.sku.toLowerCase()) ||
+          (row.name && p.name.toLowerCase() === row.name.toLowerCase())
+        )
+        if (preset && row.unitCost > 0) {
+          const override = {
+            ...preset,
+            unitCost: row.unitCost,
+            unitOfMeasure: row.unitOfMeasure,
+            coveragePerUnit: row.coveragePerUnit,
+            sku: row.sku || preset.sku,
+          }
+          const idx = customs.findIndex(p => p.id === preset.id)
+          if (idx >= 0) customs[idx] = override
+          else customs.push(override)
+          matUpdates++
+        }
+
+        store.componentDefs.forEach((def, id) => {
+          if ((row.sku && def.sku && def.sku.toLowerCase() === row.sku.toLowerCase()) ||
+              (row.name && def.name.toLowerCase() === row.name.toLowerCase())) {
+            store.updateComponentDef(id, { unitCost: row.unitCost, sku: row.sku || def.sku })
+            compUpdates++
+          }
+        })
+      })
+
+      saveCustomPresets(customs)
+      alert(`Price sheet applied: ${matUpdates} material(s) updated, ${compUpdates} component(s) updated.`)
+    }
+    input.click()
+  }
+
   const menus: { id: string; label: string; items: MenuItem[] }[] = [
     {
       id: 'file', label: 'File', items: [
@@ -211,6 +278,7 @@ export function MenuBar() {
         { label: 'Open…', shortcut: 'Ctrl+O', action: handleOpen },
         { label: 'Import 3D Model / IFC / SketchUp…', action: handleImport },
         { label: 'Import from 3D Warehouse URL…', action: () => { setWarehouseOpen(true); close() } },
+        { label: 'Import Price Sheet (CSV)…', action: handleImportPriceSheet },
         { type: 'sep' as const },
         { label: 'Save', shortcut: 'Ctrl+S', action: handleSave },
         { label: 'Share…', action: () => { setShareOpen(true); close() } },

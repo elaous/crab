@@ -64,11 +64,13 @@ function formatUOM(uom: string): string {
 export function BOMPanel() {
   const { objects, componentDefs } = useSceneStore()
 
-  const allPresets: MaterialPreset[] = useMemo(
-    () => [...MATERIAL_PRESETS, ...loadCustomPresets()],
+  const allPresets: MaterialPreset[] = useMemo(() => {
+    const customs = loadCustomPresets()
+    const customIds = new Set(customs.map(p => p.id))
+    // Custom presets take priority — allows price sheet overrides of built-in presets
+    return [...customs, ...MATERIAL_PRESETS.filter(p => !customIds.has(p.id))]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  )
+  }, [])
 
   const rows = useMemo(() => {
     const map = new Map<string, BOMRow>()

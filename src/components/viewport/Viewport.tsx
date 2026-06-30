@@ -15,6 +15,7 @@ export function Viewport() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const managerRef = useRef<SceneManager | null>(null)
+  const faceSelRef = useRef<{ objectId: string; a: number; b: number; c: number } | null>(null)
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>({ visible: false, x: 0, y: 0, targetId: null })
   const [boxSel, setBoxSel] = useState<BoxSelect | null>(null)
   const [dimInput, setDimInput] = useState('')
@@ -35,7 +36,7 @@ export function Viewport() {
     viewMode, viewPreset, settings,
     selectObject, deselectAll, setMousePos3D,
     removeObjects, duplicateObjects, updateObject, selectAll,
-    addSnapshot,
+    addSnapshot, deleteFace,
   } = store
   const { activeTool, isPushPullDragging, setDimensionDisplay, setIsPushPullDragging, setMeasureDistance, setMeasureAngle, setDrawPoints } = toolStore
 
@@ -145,6 +146,15 @@ export function Viewport() {
     setFollowMeState({ profileId, pts: pts.length })
   }, [])
 
+  const onFaceSelect = useCallback((objectId: string, a: number, b: number, c: number) => {
+    // Store last face selection so Delete key can remove it
+    faceSelRef.current = { objectId, a, b, c }
+  }, [])
+
+  const onUVPick = useCallback((objectId: string, u: number, v: number) => {
+    updateObject(objectId, { uvOffset: { x: u, y: v, z: 0 } })
+  }, [updateObject])
+
   // Init SceneManager
   useEffect(() => {
     const canvas = canvasRef.current
@@ -153,7 +163,7 @@ export function Viewport() {
       onSelect, onMouseMove3D, onContextMenu,
       onTransformChange, onPushPullProgress, onPushPullCommit, onBoxSelect,
       onMeasureComplete, onProtractorComplete, onErase, onDrawPoint,
-      onFollowMeCommit, onFollowMePoint,
+      onFollowMeCommit, onFollowMePoint, onFaceSelect, onUVPick,
     })
     managerRef.current = mgr
 
@@ -236,6 +246,12 @@ export function Viewport() {
   }, [settings.sectionEnabled, settings.sectionAxis, settings.sectionOffset, settings.sectionAngle])
 
   useEffect(() => {
+    const min = settings.clipVolumeMin ?? { x: -5, y: 0, z: -5 }
+    const max = settings.clipVolumeMax ?? { x: 5, y: 5, z: 5 }
+    managerRef.current?.setClipVolume(settings.clipVolumeEnabled ?? false, min, max)
+  }, [settings.clipVolumeEnabled, settings.clipVolumeMin, settings.clipVolumeMax])
+
+  useEffect(() => {
     managerRef.current?.setToneMapping(settings.toneMapping, settings.exposure)
   }, [settings.toneMapping, settings.exposure])
 
@@ -307,6 +323,9 @@ export function Viewport() {
         case 'enterXR':
           mgr.enterXR(action.mode)
           break
+        case 'startUVPick':
+          mgr.startUVPick()
+          break
         case 'alignToFace': {
           const face = mgr.getLastHoveredFace()
           if (!face) break
@@ -330,7 +349,7 @@ export function Viewport() {
     return off
   }, [addSnapshot, store.snapshots, store.objects, store.selectedIds, store.updateObject])
 
-  // Esc key handler to cancel draw/clear measure
+  // Esc key handler to cancel draw/clear measure; Delete to erase selected face
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -341,10 +360,17 @@ export function Viewport() {
         setMeasureInfo(null)
         setProtractorInfo(null)
       }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && toolStore.activeTool === 'faceselect') {
+        const sel = faceSelRef.current
+        if (sel) {
+          deleteFace(sel.objectId, sel.a, sel.b, sel.c)
+          faceSelRef.current = null
+        }
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [toolStore.activeTool, deleteFace])
 
   // Handle exact dimension input during push/pull
   const applyExactDim = () => {
@@ -492,6 +518,13 @@ export function Viewport() {
       {activeTool === 'eraser' && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded bg-black/60 text-slate-300 pointer-events-none">
           Click an object to erase it
+        </div>
+      )}
+
+      {/* Face Select hint */}
+      {activeTool === 'faceselect' && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded bg-black/60 text-slate-300 pointer-events-none">
+          Click a face to select it · Del to delete selected face
         </div>
       )}
 

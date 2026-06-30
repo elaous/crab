@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
+import { viewportBus } from '../../lib/viewportBus'
 import type { Vec3 } from '../../types'
 
 export function UVPanel() {
   const { objects, selectedIds, updateObject } = useSceneStore()
+  const [pickPending, setPickPending] = useState(false)
 
   const selectedObjs = Array.from(selectedIds)
     .map(id => objects.get(id))
@@ -95,6 +98,25 @@ export function UVPanel() {
               Center
             </button>
           </div>
+        </section>
+
+        <section>
+          <div className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Pick from Surface</div>
+          <div className="text-xs text-slate-500 mb-1">Click a point on the mesh to set UV origin</div>
+          <button
+            className={`w-full text-xs py-1 rounded border transition-colors ${
+              pickPending
+                ? 'bg-blue-700 border-blue-600 text-white animate-pulse'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+            onClick={() => {
+              setPickPending(true)
+              viewportBus.emit({ type: 'startUVPick' })
+              setTimeout(() => setPickPending(false), 5000)
+            }}
+          >
+            {pickPending ? 'Click mesh surface…' : 'Pick Origin from Surface'}
+          </button>
         </section>
       </div>
     </div>

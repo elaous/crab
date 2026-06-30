@@ -60,3 +60,7 @@ export function deleteCustomPreset(id: string): void {
   const existing = loadCustomPresets().filter(p => p.id !== id)
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(existing))
 }
+
+export function saveCustomPresets(presets: MaterialPreset[]): void {
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(presets))
+}
