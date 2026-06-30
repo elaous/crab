@@ -60,8 +60,16 @@ export interface SceneObject {
   rotation: Vec3
   scale: Vec3
   dimensions: BoxDims | SphereDims | CylinderDims | ConeDims | Record<string, never>
+  dimensionExpressions?: Record<string, string>  // dim key → formula, e.g. { width: "wall_w * 2" }
   metadata: ObjectMetadata
   csgData?: CSGGeometryData
+}
+
+export interface Parameter {
+  id: string
+  name: string        // valid JS identifier, used in formulas
+  expression: string  // e.g. "3.0" or "room_width * 0.5"
+  value: number       // last successfully evaluated result
 }
 
 export interface BoxDims { width: number; height: number; depth: number }
@@ -156,6 +164,7 @@ export interface SceneData {
   layers: Layer[]
   assemblies?: Assembly[]
   componentDefs?: ComponentDef[]
+  parameters?: Parameter[]
   settings: SceneSettings
   snapshots: CameraSnapshot[]
   annotations: Annotation[]

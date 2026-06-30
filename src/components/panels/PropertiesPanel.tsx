@@ -1,5 +1,84 @@
+import { useState, useEffect } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
+import { evaluateFormula } from '../../lib/formula/evaluator'
 import type { SceneObject, BoxDims, SphereDims, CylinderDims, ConeDims, Vec3 } from '../../types'
+
+function DimInput({
+  dimKey, value, expression, paramCtx, objectId,
+  min = 0.001, step = 0.1,
+}: {
+  dimKey: string
+  value: number
+  expression?: string
+  paramCtx: Record<string, number>
+  objectId: string
+  min?: number
+  step?: number
+}) {
+  const { updateObject, setDimensionExpression } = useSceneStore()
+  const hasExpr = !!expression
+  const [draft, setDraft] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Keep display in sync when not editing
+  useEffect(() => { if (draft === null) setErr(null) }, [draft])
+
+  const displayVal = draft !== null
+    ? draft
+    : hasExpr
+      ? `=${expression}`
+      : String(parseFloat(value.toFixed(4)))
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    setDraft(raw)
+
+    if (raw.startsWith('=')) {
+      const expr = raw.slice(1)
+      setDimensionExpression(objectId, dimKey, expr)
+      try {
+        evaluateFormula(expr, paramCtx)  // validate
+        setErr(null)
+      } catch (ex) {
+        setErr(ex instanceof Error ? ex.message : String(ex))
+      }
+    } else {
+      const num = parseFloat(raw)
+      if (!isNaN(num) && num >= min) {
+        updateObject(objectId, { dimensions: { [dimKey]: num } as never })
+        setDimensionExpression(objectId, dimKey, null)
+        setErr(null)
+      }
+    }
+  }
+
+  const handleBlur = () => setDraft(null)
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        className={`prop-input text-center text-xs w-full ${
+          hasExpr
+            ? err ? 'border-red-500 bg-red-900/10 text-red-300' : 'border-amber-500/60 bg-amber-900/10 text-amber-300'
+            : ''
+        }`}
+        value={displayVal}
+        step={step}
+        onChange={handleChange}
+        onFocus={() => setDraft(hasExpr ? `=${expression}` : String(parseFloat(value.toFixed(4))))}
+        onBlur={handleBlur}
+        title={err ?? (hasExpr ? `formula: ${expression} = ${value.toFixed(4)}` : undefined)}
+        placeholder="0"
+      />
+      {err && draft !== null && (
+        <div className="absolute top-full left-0 z-20 text-[10px] bg-red-900 text-red-200 px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap max-w-40">
+          {err}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Vec3Input({ label, value, onChange, step = 0.1 }: {
   label: string
@@ -30,28 +109,22 @@ function Vec3Input({ label, value, onChange, step = 0.1 }: {
 }
 
 function DimensionsEditor({ obj }: { obj: SceneObject }) {
-  const { updateObject } = useSceneStore()
-
-  const set = (patch: Partial<typeof obj.dimensions>) =>
-    updateObject(obj.id, { dimensions: { ...obj.dimensions, ...patch } as typeof obj.dimensions })
+  const paramCtx = useSceneStore(s => s.getParamContext())
+  const exprs = obj.dimensionExpressions ?? {}
 
   if (obj.type === 'box') {
     const d = obj.dimensions as BoxDims
     return (
       <div className="mb-2">
-        <div className="text-xs text-slate-500 mb-1">Dimensions</div>
+        <div className="text-xs text-slate-500 mb-1">
+          Dimensions
+          <span className="text-slate-600 ml-1 font-normal">— type = for formula</span>
+        </div>
         <div className="grid grid-cols-3 gap-1">
           {(['width', 'height', 'depth'] as const).map(k => (
             <div key={k}>
               <div className="text-xs text-slate-600 text-center mb-0.5">{k[0].toUpperCase()}</div>
-              <input
-                type="number"
-                className="prop-input text-center"
-                value={d[k]}
-                min={0.001}
-                step={0.1}
-                onChange={e => set({ [k]: parseFloat(e.target.value) || 0.001 })}
-              />
+              <DimInput dimKey={k} value={d[k]} expression={exprs[k]} paramCtx={paramCtx} objectId={obj.id} />
             </div>
           ))}
         </div>
@@ -66,14 +139,7 @@ function DimensionsEditor({ obj }: { obj: SceneObject }) {
         <div className="text-xs text-slate-500 mb-1">Dimensions</div>
         <div>
           <div className="text-xs text-slate-600 mb-0.5">Radius</div>
-          <input
-            type="number"
-            className="prop-input"
-            value={d.radius}
-            min={0.001}
-            step={0.1}
-            onChange={e => set({ radius: parseFloat(e.target.value) || 0.001 })}
-          />
+          <DimInput dimKey="radius" value={d.radius} expression={exprs['radius']} paramCtx={paramCtx} objectId={obj.id} />
         </div>
       </div>
     )
@@ -87,25 +153,11 @@ function DimensionsEditor({ obj }: { obj: SceneObject }) {
         <div className="grid grid-cols-2 gap-1">
           <div>
             <div className="text-xs text-slate-600 mb-0.5">Radius</div>
-            <input
-              type="number"
-              className="prop-input"
-              value={d.radius}
-              min={0.001}
-              step={0.1}
-              onChange={e => set({ radius: parseFloat(e.target.value) || 0.001 })}
-            />
+            <DimInput dimKey="radius" value={d.radius} expression={exprs['radius']} paramCtx={paramCtx} objectId={obj.id} />
           </div>
           <div>
             <div className="text-xs text-slate-600 mb-0.5">Height</div>
-            <input
-              type="number"
-              className="prop-input"
-              value={d.height}
-              min={0.001}
-              step={0.1}
-              onChange={e => set({ height: parseFloat(e.target.value) || 0.001 })}
-            />
+            <DimInput dimKey="height" value={d.height} expression={exprs['height']} paramCtx={paramCtx} objectId={obj.id} />
           </div>
         </div>
       </div>

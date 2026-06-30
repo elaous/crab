@@ -4,8 +4,9 @@ import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
   PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims,
   ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData,
-  Annotation, Assembly, ComponentDef,
+  Annotation, Assembly, ComponentDef, Parameter,
 } from '../types'
+import { evaluateFormula } from '../lib/formula/evaluator'
 
 const DEFAULT_LAYER: Layer = {
   id: 'default',
@@ -70,6 +71,8 @@ interface SceneState {
   assemblyOrder: string[]
   componentDefs: Map<string, ComponentDef>
   componentDefOrder: string[]
+  parameters: Map<string, Parameter>
+  parameterOrder: string[]
   selectedIds: Set<string>
   activeLayerId: string
   settings: SceneSettings
@@ -146,11 +149,18 @@ interface SceneState {
   undo: () => void
   redo: () => void
 
+  // Parameters
+  addParameter: (name?: string) => string
+  removeParameter: (id: string) => void
+  updateParameter: (id: string, patch: { name?: string; expression?: string }) => void
+  setDimensionExpression: (objectId: string, dimKey: string, expr: string | null) => void
+  getParamContext: () => Record<string, number>
+
   // IO
   setSceneName: (name: string) => void
   setDirty: (v: boolean) => void
   newScene: () => void
-  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[], assemblies?: Assembly[], componentDefs?: ComponentDef[]) => void
+  loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[], assemblies?: Assembly[], componentDefs?: ComponentDef[], parameters?: Parameter[]) => void
 
   // Remote collaboration sync — bypass history and collab echo
   _remoteSetObject: (id: string, obj: SceneObject) => void
@@ -169,6 +179,32 @@ const COMPONENT_COLORS = [
 
 let assemblyCounter = 1
 let componentCounter = 1
+let paramCounter = 1
+
+function buildParamContext(parameters: Map<string, Parameter>): Record<string, number> {
+  const ctx: Record<string, number> = {}
+  parameters.forEach(p => { ctx[p.name] = p.value })
+  return ctx
+}
+
+function applyDimExprs(objects: Map<string, SceneObject>, ctx: Record<string, number>): Map<string, SceneObject> | null {
+  let changed = false
+  const next = new Map(objects)
+  next.forEach((obj, id) => {
+    const exprs = obj.dimensionExpressions
+    if (!exprs || Object.keys(exprs).length === 0) return
+    const newDims = { ...obj.dimensions } as Record<string, number>
+    let dimChanged = false
+    Object.entries(exprs).forEach(([key, expr]) => {
+      try {
+        const val = evaluateFormula(expr, ctx)
+        if (newDims[key] !== val) { newDims[key] = val; dimChanged = true }
+      } catch { /* keep existing */ }
+    })
+    if (dimChanged) { next.set(id, { ...obj, dimensions: newDims as typeof obj.dimensions }); changed = true }
+  })
+  return changed ? next : null
+}
 
 export const useSceneStore = create<SceneState>((set, get) => ({
   sceneName: 'Untitled',
@@ -180,6 +216,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   assemblyOrder: [],
   componentDefs: new Map(),
   componentDefOrder: [],
+  parameters: new Map(),
+  parameterOrder: [],
   selectedIds: new Set(),
   activeLayerId: 'default',
   settings: DEFAULT_SETTINGS,
@@ -783,6 +821,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     objectCounter = 1
     assemblyCounter = 1
     componentCounter = 1
+    paramCounter = 1
     set({
       sceneName: 'Untitled',
       isDirty: false,
@@ -793,6 +832,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       assemblyOrder: [],
       componentDefs: new Map(),
       componentDefOrder: [],
+      parameters: new Map(),
+      parameterOrder: [],
       selectedIds: new Set(),
       activeLayerId: 'default',
       snapshots: [],
@@ -801,6 +842,98 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       historyIndex: -1,
     })
   },
+
+  addParameter: (name) => {
+    const id = uuidv4()
+    const param: Parameter = {
+      id,
+      name: name ?? `param${paramCounter++}`,
+      expression: '0',
+      value: 0,
+    }
+    set(state => ({
+      parameters: new Map(state.parameters).set(id, param),
+      parameterOrder: [...state.parameterOrder, id],
+      isDirty: true,
+    }))
+    return id
+  },
+
+  removeParameter: (id) => {
+    set(state => {
+      const parameters = new Map(state.parameters)
+      parameters.delete(id)
+      return { parameters, parameterOrder: state.parameterOrder.filter(p => p !== id), isDirty: true }
+    })
+  },
+
+  updateParameter: (id, patch) => {
+    const { parameters, objects } = get()
+    const param = parameters.get(id)
+    if (!param) return
+
+    const newName = patch.name ?? param.name
+    const newExpr = patch.expression ?? param.expression
+    let newValue = param.value
+    const newParams = new Map(parameters)
+
+    // Build context from all params (in order) using the updated param
+    const ctx: Record<string, number> = {}
+    get().parameterOrder.forEach(pid => {
+      const p = newParams.get(pid)
+      if (!p) return
+      const expr = pid === id ? newExpr : p.expression
+      const name = pid === id ? newName : p.name
+      try { ctx[name] = evaluateFormula(expr, ctx) }
+      catch { ctx[name] = p.value }
+    })
+    newValue = ctx[newName] ?? param.value
+
+    newParams.set(id, { ...param, name: newName, expression: newExpr, value: newValue })
+
+    // Rebuild full context with final values
+    const fullCtx: Record<string, number> = {}
+    get().parameterOrder.forEach(pid => {
+      const p = newParams.get(pid)!
+      fullCtx[p.name] = p.value
+    })
+
+    const updatedObjs = applyDimExprs(objects, fullCtx)
+    set({ parameters: newParams, ...(updatedObjs ? { objects: updatedObjs } : {}), isDirty: true })
+  },
+
+  setDimensionExpression: (objectId, dimKey, expr) => {
+    const { objects, parameters } = get()
+    const obj = objects.get(objectId)
+    if (!obj) return
+    const ctx = buildParamContext(parameters)
+    const exprs = { ...(obj.dimensionExpressions ?? {}) }
+
+    if (expr === null) {
+      delete exprs[dimKey]
+    } else {
+      exprs[dimKey] = expr
+      try {
+        const val = evaluateFormula(expr, ctx)
+        const dims = { ...obj.dimensions } as Record<string, number>
+        dims[dimKey] = val
+        set(state => {
+          const newObjs = new Map(state.objects)
+          newObjs.set(objectId, { ...obj, dimensions: dims as typeof obj.dimensions, dimensionExpressions: exprs })
+          return { objects: newObjs, isDirty: true }
+        })
+        return
+      } catch { /* store expr even if invalid */ }
+    }
+
+    set(state => {
+      const newObjs = new Map(state.objects)
+      newObjs.set(objectId, { ...obj, dimensionExpressions: exprs })
+      return { objects: newObjs, isDirty: true }
+    })
+  },
+
+  getParamContext: () => buildParamContext(get().parameters),
 
   _remoteSetObject: (id, obj) => set(state => {
     const objects = new Map(state.objects)
@@ -816,7 +949,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     return { objects, selectedIds }
   }),
 
-  loadScene: (objects, layers, layerOrder, settings, annotations, assemblies, componentDefs) => {
+  loadScene: (objects, layers, layerOrder, settings, annotations, assemblies, componentDefs, parameters) => {
     const objMap = new Map(objects.map(o => [o.id, o]))
     const layerMap = new Map(layers.map(l => [l.id, l]))
     const annMap = new Map((annotations ?? []).map((a: Annotation) => [a.id, a]))
@@ -824,6 +957,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const asmMap = new Map(asmList.map((a: Assembly) => [a.id, a]))
     const defList = componentDefs ?? []
     const defMap = new Map(defList.map((d: ComponentDef) => [d.id, d]))
+    const paramList = parameters ?? []
+    const paramMap = new Map(paramList.map((p: Parameter) => [p.id, p]))
     set({
       objects: objMap,
       layers: layerMap,
@@ -834,6 +969,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       assemblyOrder: asmList.map((a: Assembly) => a.id),
       componentDefs: defMap,
       componentDefOrder: defList.map((d: ComponentDef) => d.id),
+      parameters: paramMap,
+      parameterOrder: paramList.map((p: Parameter) => p.id),
       selectedIds: new Set(),
       history: [],
       historyIndex: -1,

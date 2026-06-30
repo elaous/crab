@@ -3,14 +3,16 @@ import { ToolPanel } from '../panels/ToolPanel'
 import { PropertiesPanel } from '../panels/PropertiesPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
 import { LightingPanel } from '../panels/LightingPanel'
+import { ParametricPanel } from '../panels/ParametricPanel'
 
-type Tab = 'tools' | 'properties' | 'materials' | 'lighting'
+type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'tools', label: 'Tools' },
   { id: 'properties', label: 'Props' },
   { id: 'materials', label: 'Mats' },
   { id: 'lighting', label: 'Light' },
+  { id: 'params', label: 'Params' },
 ]
 
 export function RightSidebar() {
@@ -37,6 +39,7 @@ export function RightSidebar() {
         {tab === 'properties' && <PropertiesPanel />}
         {tab === 'materials' && <MaterialPanel />}
         {tab === 'lighting' && <LightingPanel />}
+        {tab === 'params' && <ParametricPanel />}
       </div>
     </div>
   )
