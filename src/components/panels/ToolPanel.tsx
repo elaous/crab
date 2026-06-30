@@ -10,16 +10,19 @@ const primitives: Array<{ type: PrimitiveType; icon: string; label: string }> = 
   { type: 'sphere', icon: '⬤', label: 'Sphere' },
   { type: 'cylinder', icon: '⬭', label: 'Cylinder' },
   { type: 'cone', icon: '△', label: 'Cone' },
+  { type: 'torus', icon: '◎', label: 'Torus' },
+  { type: 'helix', icon: '⤴', label: 'Helix' },
   { type: 'line', icon: '╱', label: 'Line' },
 ]
 
 const tools: Array<{ mode: ToolMode; icon: string; label: string; shortcut: string }> = [
-  { mode: 'select',   icon: '↖',  label: 'Select',    shortcut: 'S' },
-  { mode: 'move',     icon: '✥',  label: 'Move',      shortcut: 'M' },
-  { mode: 'rotate',   icon: '↻',  label: 'Rotate',    shortcut: 'R' },
-  { mode: 'scale',    icon: '⤢',  label: 'Scale',     shortcut: 'E' },
-  { mode: 'pushpull', icon: '⬆↕', label: 'Push/Pull', shortcut: 'P' },
-  { mode: 'walk',     icon: '🚶', label: 'Walk',       shortcut: 'F' },
+  { mode: 'select',     icon: '↖',  label: 'Select',    shortcut: 'S' },
+  { mode: 'move',       icon: '✥',  label: 'Move',      shortcut: 'M' },
+  { mode: 'rotate',     icon: '↻',  label: 'Rotate',    shortcut: 'R' },
+  { mode: 'scale',      icon: '⤢',  label: 'Scale',     shortcut: 'E' },
+  { mode: 'pushpull',   icon: '⬆↕', label: 'Push/Pull', shortcut: 'P' },
+  { mode: 'faceselect', icon: '◧',  label: 'Face Sel',  shortcut: 'F2' },
+  { mode: 'walk',       icon: '🚶', label: 'Walk',       shortcut: 'F' },
 ]
 
 const drawTools: Array<{ mode: ToolMode; icon: string; label: string; shortcut: string }> = [

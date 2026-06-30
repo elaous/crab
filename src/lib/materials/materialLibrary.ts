@@ -42,7 +42,7 @@ export function getPreset(id: string): MaterialPreset | undefined {
 
 // ─── Custom (user-created) presets ──────────────────────────────────────────
 
-const CUSTOM_KEY = 'crabcad-custom-materials'
+const CUSTOM_KEY = 'facet3d-custom-materials'
 
 export function loadCustomPresets(): MaterialPreset[] {
   try {
@@ -59,4 +59,8 @@ export function saveCustomPreset(preset: MaterialPreset): void {
 export function deleteCustomPreset(id: string): void {
   const existing = loadCustomPresets().filter(p => p.id !== id)
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(existing))
+}
+
+export function saveCustomPresets(presets: MaterialPreset[]): void {
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(presets))
 }

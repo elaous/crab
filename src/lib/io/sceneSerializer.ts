@@ -61,7 +61,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 export function downloadJSON(data: SceneData, filename: string) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  downloadBlob(blob, filename.endsWith('.crab') ? filename : filename + '.crab')
+  downloadBlob(blob, filename.endsWith('.facet') ? filename : filename + '.facet')
 }
 
 function getGeometryForObj(obj: SceneObject): THREE.BufferGeometry | null {
@@ -95,7 +95,7 @@ function getGeometryForObj(obj: SceneObject): THREE.BufferGeometry | null {
 }
 
 export function exportSTL(objects: Map<string, SceneObject>): string {
-  let stl = 'solid CrabCAD\n'
+  let stl = 'solid Facet 3D\n'
 
   objects.forEach(obj => {
     const geo = getGeometryForObj(obj)
@@ -150,7 +150,7 @@ export function exportSTL(objects: Map<string, SceneObject>): string {
     else geo.dispose()
   })
 
-  stl += 'endsolid CrabCAD\n'
+  stl += 'endsolid Facet 3D\n'
   return stl
 }
 
@@ -190,7 +190,7 @@ export async function loadFromFile(): Promise<SceneData | null> {
   return new Promise(resolve => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.crab,.json'
+    input.accept = '.facet,.json'
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) { resolve(null); return }
@@ -207,7 +207,7 @@ export async function loadFromFile(): Promise<SceneData | null> {
   })
 }
 
-const AUTOSAVE_KEY = 'crabcad_autosave'
+const AUTOSAVE_KEY = 'facet3d_autosave'
 
 export function autosave(data: SceneData) {
   try {

@@ -4,7 +4,7 @@ import { useUIStore } from '../../store/uiStore'
 const STEPS = [
   {
     icon: '🦀',
-    title: 'Welcome to CrabCAD',
+    title: 'Welcome to Facet 3D',
     desc: 'A free, browser-based 3D modeling suite inspired by SketchUp. No install needed.',
   },
   {
@@ -25,7 +25,7 @@ const STEPS = [
   {
     icon: '💾',
     title: 'Save & Export',
-    desc: 'File → Save saves your scene as .crab. Export to GLTF, OBJ, STL, or CSV bill-of-materials.',
+    desc: 'File → Save saves your scene as .facet. Export to GLTF, OBJ, STL, or CSV bill-of-materials.',
   },
 ]
 

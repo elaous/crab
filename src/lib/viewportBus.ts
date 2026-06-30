@@ -9,6 +9,7 @@ export type ViewportAction =
   | { type: 'exportSVG'; view: 'top' | 'front' | 'right' | 'all'; sceneName: string }
   | { type: 'enterXR'; mode: 'vr' | 'ar' }
   | { type: 'alignToFace' }
+  | { type: 'startUVPick' }
 
 type Listener = (action: ViewportAction) => void
 const listeners = new Set<Listener>()

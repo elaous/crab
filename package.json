@@ -1,5 +1,5 @@
 {
-  "name": "crab",
+  "name": "facet3d",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -16,12 +16,13 @@
     "electron:build": "ELECTRON=true npm run build && npm run electron:compile && electron-builder",
     "electron:build:win": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --win",
     "electron:build:mac": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --mac",
-    "electron:build:linux": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --linux"
+    "electron:build:linux": "ELECTRON=true npm run build && npm run electron:compile && electron-builder --linux",
+    "publish:sdk": "cd sdk && npm publish"
   },
   "build": {
-    "appId": "io.crabcad.app",
-    "productName": "CrabCAD",
-    "copyright": "Copyright © 2025 CrabCAD contributors",
+    "appId": "io.facet3d.app",
+    "productName": "Facet 3D",
+    "copyright": "Copyright © 2025 Facet 3D contributors",
     "directories": {
       "output": "release",
       "buildResources": "public"

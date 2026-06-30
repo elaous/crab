@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 import { serialize } from '../../lib/io/sceneSerializer'
 import { serializeBinary } from '../../lib/io/capnpSerializer'
+import type { UserRole } from '../../types'
 
-type Permission = 'viewer' | 'editor' | 'owner'
+type Permission = UserRole
 
 interface ShareEntry {
   id: string
@@ -16,7 +17,7 @@ interface ShareEntry {
 const BASE = (import.meta.env.VITE_API_URL as string | undefined ?? '').replace(/\/$/, '')
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('crabcad-api-token')
+  const token = localStorage.getItem('facet3d-api-token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
@@ -265,7 +266,7 @@ export function ShareModal({ onClose }: Props) {
               )
             ) : (
               <div className="text-xs text-slate-400">
-                Set <span className="font-mono text-blue-400">VITE_API_URL</span> to publish to a CrabCAD server and generate share links.
+                Set <span className="font-mono text-blue-400">VITE_API_URL</span> to publish to a Facet 3D server and generate share links.
               </div>
             )}
           </div>

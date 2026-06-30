@@ -5,14 +5,14 @@ const BASE = (import.meta.env.VITE_API_URL as string | undefined ?? '').replace(
 function url(path: string) { return `${BASE}/api${path}` }
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('crabcad-api-token')
+  const token = localStorage.getItem('facet3d-api-token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 async function assertOk(res: Response) {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
-    throw new Error(`CrabCAD API ${res.status}: ${text}`)
+    throw new Error(`Facet 3D API ${res.status}: ${text}`)
   }
 }
 

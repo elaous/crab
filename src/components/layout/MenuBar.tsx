@@ -14,6 +14,9 @@ import { ScenePickerModal } from '../overlay/ScenePickerModal'
 import { ShareModal } from '../overlay/ShareModal'
 import { storage, storageMode } from '../../lib/storage'
 import { importModel, openModelFilePicker } from '../../lib/io/modelImporter'
+import { exportSVG2D } from '../../lib/io/svgExporter'
+import { openPrintLayout } from '../../lib/io/printLayout'
+import { MATERIAL_PRESETS, loadCustomPresets, saveCustomPresets } from '../../lib/materials/materialLibrary'
 import type { BooleanOp } from '../../types'
 import type { SceneEntry } from '../../lib/storage/types'
 
@@ -163,6 +166,30 @@ export function MenuBar() {
     }
   }
 
+  const handlePrint = () => {
+    const svgs = (['top', 'front', 'right'] as const).map(view => ({
+      label: view.charAt(0).toUpperCase() + view.slice(1),
+      svg: exportSVG2D(store.objects, view),
+    }))
+    openPrintLayout({
+      sceneName: store.sceneName,
+      svgs,
+      objects: store.objects,
+      units: store.settings.units,
+    })
+    close()
+  }
+
+  const handlePurge = () => {
+    const result = store.purgeUnused()
+    const msg = [
+      result.layers > 0 ? `${result.layers} empty layer(s)` : '',
+      result.components > 0 ? `${result.components} unused component def(s)` : '',
+    ].filter(Boolean)
+    alert(msg.length > 0 ? `Purged: ${msg.join(', ')}` : 'Nothing to purge — scene is clean.')
+    close()
+  }
+
   const handleBoolean = (op: BooleanOp) => {
     const ids = Array.from(store.selectedIds)
     if (ids.length !== 2) return
@@ -178,6 +205,72 @@ export function MenuBar() {
 
   const hasTwoSelected = store.selectedIds.size === 2
 
+  const handleImportPriceSheet = () => {
+    close()
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      const text = await file.text()
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+      if (lines.length < 2) { alert('Price sheet CSV is empty or missing header.'); return }
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[" ]/g, ''))
+      const col = (row: string[], name: string) => {
+        const i = headers.indexOf(name)
+        return i >= 0 ? row[i]?.replace(/"/g, '').trim() : ''
+      }
+      const parsed = lines.slice(1).map(line => {
+        const row = line.split(',')
+        return {
+          sku: col(row, 'sku'),
+          name: col(row, 'name'),
+          unitCost: parseFloat(col(row, 'unit_cost') || col(row, 'unitcost') || '0') || 0,
+          unitOfMeasure: (col(row, 'unit_of_measure') || col(row, 'unitofmeasure') || 'sqm') as 'sqm' | 'sqft' | 'unit' | 'linear_m' | 'linear_ft',
+          coveragePerUnit: parseFloat(col(row, 'coverage_per_unit') || col(row, 'coverageperunit') || '1') || 1,
+        }
+      })
+
+      const customs = loadCustomPresets()
+      const allMats = [...MATERIAL_PRESETS, ...customs]
+      let matUpdates = 0
+      let compUpdates = 0
+
+      parsed.forEach(row => {
+        const preset = allMats.find(p =>
+          (row.sku && p.sku && p.sku.toLowerCase() === row.sku.toLowerCase()) ||
+          (row.name && p.name.toLowerCase() === row.name.toLowerCase())
+        )
+        if (preset && row.unitCost > 0) {
+          const override = {
+            ...preset,
+            unitCost: row.unitCost,
+            unitOfMeasure: row.unitOfMeasure,
+            coveragePerUnit: row.coveragePerUnit,
+            sku: row.sku || preset.sku,
+          }
+          const idx = customs.findIndex(p => p.id === preset.id)
+          if (idx >= 0) customs[idx] = override
+          else customs.push(override)
+          matUpdates++
+        }
+
+        store.componentDefs.forEach((def, id) => {
+          if ((row.sku && def.sku && def.sku.toLowerCase() === row.sku.toLowerCase()) ||
+              (row.name && def.name.toLowerCase() === row.name.toLowerCase())) {
+            store.updateComponentDef(id, { unitCost: row.unitCost, sku: row.sku || def.sku })
+            compUpdates++
+          }
+        })
+      })
+
+      saveCustomPresets(customs)
+      alert(`Price sheet applied: ${matUpdates} material(s) updated, ${compUpdates} component(s) updated.`)
+    }
+    input.click()
+  }
+
   const menus: { id: string; label: string; items: MenuItem[] }[] = [
     {
       id: 'file', label: 'File', items: [
@@ -185,6 +278,7 @@ export function MenuBar() {
         { label: 'Open…', shortcut: 'Ctrl+O', action: handleOpen },
         { label: 'Import 3D Model / IFC / SketchUp…', action: handleImport },
         { label: 'Import from 3D Warehouse URL…', action: () => { setWarehouseOpen(true); close() } },
+        { label: 'Import Price Sheet (CSV)…', action: handleImportPriceSheet },
         { type: 'sep' as const },
         { label: 'Save', shortcut: 'Ctrl+S', action: handleSave },
         { label: 'Share…', action: () => { setShareOpen(true); close() } },
@@ -200,6 +294,8 @@ export function MenuBar() {
         { label: 'Export SVG 2D (Top)…', action: () => handleExportSVG('top') },
         { label: 'Export SVG 2D (Front)…', action: () => handleExportSVG('front') },
         { label: 'Export SVG 2D (Right)…', action: () => handleExportSVG('right') },
+        { type: 'sep' as const },
+        { label: 'Print / Page Layout…', action: handlePrint },
       ],
     },
     {
@@ -243,6 +339,7 @@ export function MenuBar() {
         },
         { type: 'sep' as const },
         { label: 'Preferences…', shortcut: 'Ctrl+,', action: () => { setPrefsOpen(true); close() } },
+        { label: 'Purge Unused (layers, components)…', action: handlePurge },
         { type: 'sep' as const },
         {
           label: `Boolean Union${!hasTwoSelected ? ' (select 2)' : ''}`,
@@ -304,7 +401,7 @@ export function MenuBar() {
         { label: 'Keyboard Shortcuts', shortcut: '?', action: () => { setShortcutsOpen(true); close() } },
         { label: 'Getting Started', action: () => { setOnboardingOpen(true); close() } },
         { type: 'sep' as const },
-        { label: 'About CrabCAD', action: () => { alert('CrabCAD — Open-source 3D modeling suite\nBuilt with Three.js, React, TypeScript'); close() } },
+        { label: 'About Facet 3D', action: () => { alert('Facet 3D — Open-source 3D modeling suite\nBuilt with Three.js, React, TypeScript'); close() } },
       ],
     },
   ]
@@ -315,7 +412,7 @@ export function MenuBar() {
       className="menu-bar flex items-center h-8 bg-slate-900 border-b border-slate-800 px-2 gap-1 flex-shrink-0"
     >
       {/* Logo */}
-      <span className="text-blue-400 font-bold text-sm mr-2 select-none">🦀 CrabCAD</span>
+      <span className="text-blue-400 font-bold text-sm mr-2 select-none">◈ Facet 3D</span>
 
       {menus.map(menu => (
         <div key={menu.id} className="menu-item">

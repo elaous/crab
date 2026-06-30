@@ -1,9 +1,9 @@
 @0xd3a4b5c6e7f80912;
-# CrabCAD scene file format — Cap'n Proto schema
+# Facet 3D scene file format — Cap'n Proto schema
 # Version 1.0.0
 #
 # Wire format: the root message is a SceneFile containing a SceneData struct.
-# Debug mode: a sidecar .crab.json is also written with the JSON-serialized form.
+# Debug mode: a sidecar .facet.json is also written with the JSON-serialized form.
 
 
 struct Vec3 {

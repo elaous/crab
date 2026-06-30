@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { prisma } from '../db.js'
 
-const AUTH_DISABLED = process.env.CRABCAD_AUTH === 'false'
+const AUTH_DISABLED = process.env.FACET3D_AUTH === 'false'
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (AUTH_DISABLED) { next(); return }

@@ -1,4 +1,6 @@
-export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'csg' | 'component-instance' | 'line' | 'imported'
+export type PrimitiveType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'helix' | 'csg' | 'component-instance' | 'line' | 'imported'
+
+export type UserRole = 'owner' | 'editor' | 'viewer'
 
 export type LineStyle = 'solid' | 'dashed' | 'dotted' | 'dot-dash' | 'double'
 
@@ -66,10 +68,13 @@ export interface SceneObject {
   metalness: number
   materialPresetId?: string
   textureDataUrl?: string   // base64 data URL for image texture map
+  uvOffset?: Vec3           // UV texture offset (x, y); z ignored
+  uvScale?: Vec3            // UV texture repeat (x, y); z ignored
+  uvRotation?: number       // UV rotation in degrees
   position: Vec3
   rotation: Vec3
   scale: Vec3
-  dimensions: BoxDims | SphereDims | CylinderDims | ConeDims | LineDims | Record<string, never>
+  dimensions: BoxDims | SphereDims | CylinderDims | ConeDims | LineDims | TorusDims | HelixDims | Record<string, never>
   dimensionExpressions?: Record<string, string>  // dim key → formula, e.g. { width: "wall_w * 2" }
   lineStyle?: LineStyle
   lineWidth?: number
@@ -89,6 +94,8 @@ export interface SphereDims { radius: number }
 export interface CylinderDims { radius: number; height: number }
 export interface ConeDims { radius: number; height: number }
 export interface LineDims { length: number }
+export interface TorusDims { radius: number; tube: number }  // outer radius, tube radius
+export interface HelixDims { radius: number; height: number; turns: number; tubeRadius: number }
 
 export interface ObjectMetadata {
   cost?: number
@@ -154,6 +161,10 @@ export interface SceneSettings {
   xrayMode: boolean
   bgGradient: boolean
   bgColorTop: string
+  // Clipping volumes
+  clipVolumeEnabled?: boolean
+  clipVolumeMin?: Vec3
+  clipVolumeMax?: Vec3
 }
 
 export interface SceneVersion {

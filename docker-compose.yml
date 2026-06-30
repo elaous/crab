@@ -5,13 +5,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER:     crab
-      POSTGRES_PASSWORD: crab
-      POSTGRES_DB:       crabcad
+      POSTGRES_USER:     facet3d
+      POSTGRES_PASSWORD: facet3d
+      POSTGRES_DB:       facet3d
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crab -d crabcad"]
+      test: ["CMD-SHELL", "pg_isready -U facet3d -d facet3d"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,11 +23,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://crab:crab@db:5432/crabcad
+      DATABASE_URL: postgresql://facet3d:facet3d@db:5432/facet3d
       PORT:         3001
       NODE_ENV:     production
       CORS_ORIGIN:  ${CORS_ORIGIN:-*}
-      CRABCAD_AUTH: ${CRABCAD_AUTH:-false}
+      FACET3D_AUTH: ${FACET3D_AUTH:-false}
     depends_on:
       db:
         condition: service_healthy

@@ -1,7 +1,7 @@
 {
-  "name": "@crabcad/sdk",
+  "name": "@facet3d/sdk",
   "version": "0.1.0",
-  "description": "TypeScript SDK for building CrabCAD plugins and integrations",
+  "description": "TypeScript SDK for building Facet 3D plugins and integrations",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -27,9 +27,13 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": ["crabcad", "3d", "modeling", "plugin", "sdk"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": ["facet3d", "3d", "modeling", "plugin", "sdk"],
   "license": "MIT",
   "devDependencies": {
     "tsup": "^8.4.0",

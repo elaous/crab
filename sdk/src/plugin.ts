@@ -55,14 +55,14 @@ export interface PluginBundle {
 }
 
 /**
- * Defines a type-safe CrabCAD plugin.
+ * Defines a type-safe Facet 3D plugin.
  *
  * The `setup` function is serialized to a string for the Worker sandbox.
  * It must be fully self-contained — no outer-scope references allowed.
  *
  * @example
  * ```ts
- * import { definePlugin } from '@crabcad/sdk'
+ * import { definePlugin } from '@facet3d/sdk'
  *
  * export default definePlugin({
  *   manifest: {
@@ -77,7 +77,7 @@ export interface PluginBundle {
  *       label: 'Say Hello',
  *       icon: '👋',
  *       run() {
- *         api.log('Hello from CrabCAD!')
+ *         api.log('Hello from Facet 3D!')
  *       },
  *     })
  *   },

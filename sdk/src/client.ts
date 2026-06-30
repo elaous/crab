@@ -18,11 +18,11 @@ export interface RemotePlugin {
   manifest: PluginManifest
 }
 
-// ── CrabCADClient ─────────────────────────────────────────────────────────────
+// ── Facet3DClient ─────────────────────────────────────────────────────────────
 
-export interface CrabCADClientOptions {
+export interface Facet3DClientOptions {
   /**
-   * Base URL of a self-hosted CrabCAD API server.
+   * Base URL of a self-hosted Facet 3D API server.
    * When omitted the client operates in local-only mode (no network calls).
    */
   apiUrl?: string
@@ -31,23 +31,23 @@ export interface CrabCADClientOptions {
 }
 
 /**
- * Client for interacting with a CrabCAD instance from external tooling:
+ * Client for interacting with a Facet 3D instance from external tooling:
  * CI pipelines, testing harnesses, external plugin registries, or server-side
  * scene processing.
  *
  * @example
  * ```ts
- * import { CrabCADClient } from '@crabcad/sdk'
+ * import { Facet3DClient } from '@facet3d/sdk'
  *
- * const client = new CrabCADClient({ apiUrl: 'https://crabcad.example.com' })
+ * const client = new Facet3DClient({ apiUrl: 'https://facet3d.example.com' })
  * const plugins = await client.listRemotePlugins()
  * ```
  */
-export class CrabCADClient {
+export class Facet3DClient {
   private apiUrl: string | undefined
   private headers: Record<string, string>
 
-  constructor(options: CrabCADClientOptions = {}) {
+  constructor(options: Facet3DClientOptions = {}) {
     this.apiUrl = options.apiUrl?.replace(/\/$/, '')
     this.headers = {
       'Content-Type': 'application/json',
@@ -101,7 +101,7 @@ export class CrabCADClient {
 
   /**
    * Downloads a scene from the server as a raw binary buffer.
-   * Expects `GET /api/scenes/:id` returning the `.crab` binary.
+   * Expects `GET /api/scenes/:id` returning the `.facet` binary.
    */
   async getScene(id: string): Promise<ArrayBuffer> {
     const res = await this.fetch(`/api/scenes/${id}`, { headers: { ...this.headers, Accept: 'application/octet-stream' } })
@@ -110,7 +110,7 @@ export class CrabCADClient {
 
   /**
    * Uploads a scene binary to the server.
-   * Expects `PUT /api/scenes/:id` with the `.crab` binary body.
+   * Expects `PUT /api/scenes/:id` with the `.facet` binary body.
    */
   async saveScene(id: string, name: string, data: ArrayBuffer): Promise<void> {
     await this.fetch(`/api/scenes/${id}`, {
@@ -123,9 +123,9 @@ export class CrabCADClient {
   // ── Utilities ────────────────────────────────────────────────────────────────
 
   private async fetch(path: string, init?: RequestInit): Promise<Response> {
-    if (!this.apiUrl) throw new Error('CrabCADClient: apiUrl is required for server operations')
+    if (!this.apiUrl) throw new Error('Facet3DClient: apiUrl is required for server operations')
     const res = await globalThis.fetch(`${this.apiUrl}${path}`, { headers: this.headers, ...init })
-    if (!res.ok) throw new Error(`CrabCAD API error: ${res.status} ${res.statusText}`)
+    if (!res.ok) throw new Error(`Facet 3D API error: ${res.status} ${res.statusText}`)
     return res
   }
 }

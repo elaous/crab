@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
-import type { Vec3 } from '../../types'
+import type { Vec3, AnnotationType } from '../../types'
 
 const DEFAULT_COLOR = '#facc15'
 const DEFAULT_SIZE = 12
+
+function computeDimensionLabel(from: Vec3, to: Vec3): string {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const dz = to.z - from.z
+  return Math.sqrt(dx * dx + dy * dy + dz * dz).toFixed(3)
+}
 
 export function AnnotationPanel() {
   const { annotations, addAnnotation, removeAnnotation, updateAnnotation, objects, selectedIds } = useSceneStore()
@@ -11,6 +18,8 @@ export function AnnotationPanel() {
   const [color, setColor] = useState(DEFAULT_COLOR)
   const [fontSize, setFontSize] = useState(DEFAULT_SIZE)
   const [pos, setPos] = useState<Vec3>({ x: 0, y: 1, z: 0 })
+  const [toPos, setToPos] = useState<Vec3>({ x: 1, y: 1, z: 0 })
+  const [annType, setAnnType] = useState<AnnotationType>('label')
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const annList = Array.from(annotations.values())
@@ -21,15 +30,36 @@ export function AnnotationPanel() {
     return obj ? { ...obj.position, y: obj.position.y + 0.5 } : null
   }
 
+  const getSecondSelectedPos = (): Vec3 | null => {
+    const ids = Array.from(selectedIds)
+    const id = ids[1]
+    const obj = id ? objects.get(id) : undefined
+    return obj ? { ...obj.position, y: obj.position.y + 0.5 } : null
+  }
+
   const handleAdd = () => {
-    if (!text.trim()) return
-    addAnnotation({ type: 'label', text: text.trim(), position: pos, color, fontSize })
+    if (!text.trim() && annType === 'label') return
+    const labelText = annType === 'dimension'
+      ? (text.trim() || computeDimensionLabel(pos, toPos))
+      : text.trim()
+    addAnnotation({
+      type: annType,
+      text: labelText,
+      position: pos,
+      ...(annType === 'dimension' ? { to: toPos } : {}),
+      color,
+      fontSize,
+    })
     setText('')
   }
 
   const handlePickFromSelected = () => {
     const p = getSelectedPos()
     if (p) setPos(p)
+    if (annType === 'dimension') {
+      const p2 = getSecondSelectedPos()
+      if (p2) setToPos(p2)
+    }
   }
 
   const handleSaveEdit = (id: string, newText: string) => {
@@ -44,14 +74,35 @@ export function AnnotationPanel() {
 
         {/* Add new */}
         <div>
-          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">New Label</div>
-          <input
-            className="prop-input mb-1.5"
-            placeholder="Label text…"
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          />
+          <div className="flex items-center gap-1 mb-2">
+            <div className="text-xs text-slate-500 uppercase tracking-wider flex-1">New Annotation</div>
+            <select
+              className="prop-input text-xs w-28"
+              value={annType}
+              onChange={e => setAnnType(e.target.value as AnnotationType)}
+            >
+              <option value="label">Label</option>
+              <option value="dimension">Dimension</option>
+            </select>
+          </div>
+          {annType === 'label' && (
+            <input
+              className="prop-input mb-1.5"
+              placeholder="Label text…"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            />
+          )}
+          {annType === 'dimension' && (
+            <input
+              className="prop-input mb-1.5"
+              placeholder="Override label (auto if blank)"
+              value={text}
+              onChange={e => setText(e.target.value)}
+            />
+          )}
+          <div className="text-xs text-slate-600 mb-0.5">From</div>
           <div className="grid grid-cols-3 gap-1 mb-1.5">
             {(['x', 'y', 'z'] as const).map(axis => (
               <div key={axis}>
@@ -66,6 +117,28 @@ export function AnnotationPanel() {
               </div>
             ))}
           </div>
+          {annType === 'dimension' && (
+            <>
+              <div className="text-xs text-slate-600 mb-0.5">To</div>
+              <div className="grid grid-cols-3 gap-1 mb-1.5">
+                {(['x', 'y', 'z'] as const).map(axis => (
+                  <div key={axis}>
+                    <div className="text-xs text-slate-600 text-center mb-0.5">{axis.toUpperCase()}</div>
+                    <input
+                      type="number"
+                      className="prop-input text-center"
+                      value={toPos[axis]}
+                      step={0.1}
+                      onChange={e => setToPos(p => ({ ...p, [axis]: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-slate-500 mb-1.5 text-center">
+                Distance: {computeDimensionLabel(pos, toPos)}
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-2 mb-1.5">
             <input
               type="color"
@@ -85,17 +158,17 @@ export function AnnotationPanel() {
             <button
               className="flex-1 text-xs py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
               onClick={handlePickFromSelected}
-              title="Use selected object's position"
+              title={annType === 'dimension' ? 'Pick From/To from first two selected objects' : 'Use selected object position'}
             >
-              Pick Selected
+              Pick Sel.
             </button>
           </div>
           <button
             className="w-full text-xs py-1.5 bg-blue-700 hover:bg-blue-600 rounded text-white transition-colors disabled:opacity-40"
-            disabled={!text.trim()}
+            disabled={annType === 'label' && !text.trim()}
             onClick={handleAdd}
           >
-            Add Label
+            Add {annType === 'dimension' ? 'Dimension' : 'Label'}
           </button>
         </div>
 
@@ -104,33 +177,45 @@ export function AnnotationPanel() {
         {/* List */}
         <div className="space-y-1">
           {annList.map(ann => (
-            <div key={ann.id} className="flex items-center gap-1 group">
-              <div
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: ann.color }}
-              />
-              {editingId === ann.id ? (
-                <input
-                  className="prop-input flex-1 text-xs"
-                  defaultValue={ann.text}
-                  autoFocus
-                  onBlur={e => handleSaveEdit(ann.id, e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleSaveEdit(ann.id, (e.target as HTMLInputElement).value)
-                    if (e.key === 'Escape') setEditingId(null)
-                  }}
+            <div key={ann.id} className="flex items-start gap-1 group">
+              <div className="flex flex-col items-center pt-1">
+                <div
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ background: ann.color }}
                 />
-              ) : (
-                <span
-                  className="flex-1 text-xs text-slate-300 truncate cursor-pointer hover:text-white"
-                  onClick={() => setEditingId(ann.id)}
-                  title={ann.text}
-                >
-                  {ann.text}
-                </span>
-              )}
+                {ann.type === 'dimension' && (
+                  <span className="text-slate-600 text-xs leading-none">↔</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                {editingId === ann.id ? (
+                  <input
+                    className="prop-input w-full text-xs"
+                    defaultValue={ann.text}
+                    autoFocus
+                    onBlur={e => handleSaveEdit(ann.id, e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSaveEdit(ann.id, (e.target as HTMLInputElement).value)
+                      if (e.key === 'Escape') setEditingId(null)
+                    }}
+                  />
+                ) : (
+                  <span
+                    className="text-xs text-slate-300 truncate cursor-pointer hover:text-white block"
+                    onClick={() => setEditingId(ann.id)}
+                    title={ann.text}
+                  >
+                    {ann.text}
+                  </span>
+                )}
+                {ann.type === 'dimension' && ann.to && (
+                  <span className="text-xs text-slate-600">
+                    {computeDimensionLabel(ann.position, ann.to)} units
+                  </span>
+                )}
+              </div>
               <button
-                className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-all text-xs px-1"
+                className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-all text-xs px-1 pt-0.5"
                 onClick={() => removeAnnotation(ann.id)}
               >
                 ✕

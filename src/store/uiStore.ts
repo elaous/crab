@@ -9,7 +9,7 @@ interface UIState {
   setPrefsOpen: (v: boolean) => void
 }
 
-const ONBOARDING_KEY = 'crabcad_onboarded'
+const ONBOARDING_KEY = 'facet3d_onboarded'
 
 export const useUIStore = create<UIState>(() => ({
   shortcutsOpen: false,
