@@ -184,6 +184,7 @@ interface SceneState {
 
   // Geometry ops
   offsetSelectedFace: (distance: number) => void
+  sweepFollowMe: (profileId: string, pathPoints: Vec3[]) => void
 
   // Versioning
   versions: SceneVersion[]
@@ -1109,6 +1110,45 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       return { objects: newObjects, isDirty: true }
     })
     void objects
+  },
+
+  sweepFollowMe: (profileId, pathPoints) => {
+    const { objects, activeLayerId } = get()
+    const profile = objects.get(profileId)
+    if (!profile || pathPoints.length < 2) return
+    // Lazy import to avoid bundling Three.js geometry in store
+    void import('../lib/tools/FollowMeEngine').then(({ sweepProfile }) => {
+      const dims = profile.dimensions as BoxDims
+      const w = (dims.width ?? 1) * Math.abs(profile.scale.x)
+      const h = (dims.height ?? 1) * Math.abs(profile.scale.y)
+      const csgData = sweepProfile(w, h, pathPoints)
+      if (!csgData) return
+      get().pushHistory()
+      const id = uuidv4()
+      const obj: SceneObject = {
+        id,
+        name: `Sweep (${profile.name})`,
+        type: 'imported',
+        layerId: activeLayerId,
+        visible: true,
+        locked: false,
+        color: profile.color,
+        opacity: profile.opacity,
+        roughness: profile.roughness,
+        metalness: profile.metalness,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        dimensions: {},
+        metadata: {},
+        csgData,
+      }
+      set(state => {
+        const objs = new Map(state.objects)
+        objs.set(id, obj)
+        return { objects: objs, selectedIds: new Set([id]), isDirty: true }
+      })
+    })
   },
 
   loadScene: (objects, layers, layerOrder, settings, annotations, assemblies, componentDefs, parameters) => {

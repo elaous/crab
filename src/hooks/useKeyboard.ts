@@ -65,6 +65,14 @@ export function useKeyboard() {
           case 'r': toolStore.setActiveTool('rotate'); break
           case 'e': toolStore.setActiveTool('scale'); break
           case 'p': toolStore.setActiveTool('pushpull'); break
+          case 'f': toolStore.setActiveTool('walk'); break
+          case 'j': toolStore.setActiveTool('followme'); break
+          case 'd': toolStore.setActiveTool('draw'); break
+          case 'a': toolStore.setActiveTool('arc'); break
+          case 'g': if (!e.ctrlKey && !e.metaKey) toolStore.setActiveTool('polygon'); break
+          case 'x': toolStore.setActiveTool('eraser'); break
+          case 't': toolStore.setActiveTool('measure'); break
+          case 'q': toolStore.setActiveTool('protractor'); break
         }
       }
 

@@ -8,8 +8,10 @@ import { StylesPanel } from '../panels/StylesPanel'
 import { PluginsPanel } from '../panels/PluginsPanel'
 import { VersionsPanel } from '../panels/VersionsPanel'
 import { CatalogPanel } from '../panels/CatalogPanel'
+import { BOMPanel } from '../panels/BOMPanel'
+import { Layout2DPanel } from '../panels/Layout2DPanel'
 
-type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog'
+type Tab = 'tools' | 'properties' | 'materials' | 'lighting' | 'params' | 'styles' | 'plugins' | 'versions' | 'catalog' | 'bom' | 'layout2d'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'tools', label: 'Tools' },
@@ -21,6 +23,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'plugins', label: 'Plug' },
   { id: 'versions', label: 'Hist' },
   { id: 'catalog', label: 'Cat' },
+  { id: 'bom', label: 'BOM' },
+  { id: 'layout2d', label: '2D' },
 ]
 
 export function RightSidebar() {
@@ -52,6 +56,8 @@ export function RightSidebar() {
         {tab === 'plugins' && <PluginsPanel />}
         {tab === 'versions' && <VersionsPanel />}
         {tab === 'catalog' && <CatalogPanel />}
+        {tab === 'bom' && <BOMPanel />}
+        {tab === 'layout2d' && <Layout2DPanel />}
       </div>
     </div>
   )

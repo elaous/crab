@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 import { useToolStore } from '../../store/toolStore'
+import { viewportBus } from '../../lib/viewportBus'
 import type { ToolMode } from '../../store/toolStore'
 import type { PrimitiveType } from '../../types'
 
@@ -18,6 +19,7 @@ const tools: Array<{ mode: ToolMode; icon: string; label: string; shortcut: stri
   { mode: 'rotate',   icon: '↻',  label: 'Rotate',    shortcut: 'R' },
   { mode: 'scale',    icon: '⤢',  label: 'Scale',     shortcut: 'E' },
   { mode: 'pushpull', icon: '⬆↕', label: 'Push/Pull', shortcut: 'P' },
+  { mode: 'walk',     icon: '🚶', label: 'Walk',       shortcut: 'F' },
 ]
 
 const drawTools: Array<{ mode: ToolMode; icon: string; label: string; shortcut: string }> = [
@@ -103,6 +105,11 @@ export function ToolPanel() {
         {activeTool === 'pushpull' && (
           <div className="mt-1 text-xs text-blue-400/80 px-1">
             Boxes only. Click face + drag.
+          </div>
+        )}
+        {activeTool === 'walk' && (
+          <div className="mt-1 text-xs text-blue-400/80 px-1">
+            Click viewport · WASD move · Q/E up/down · Esc exit
           </div>
         )}
       </section>
@@ -196,14 +203,33 @@ export function ToolPanel() {
           )}
 
           {/* Follow Me */}
+          <ToolButton
+            mode="followme"
+            icon="↪"
+            label="Follow Me"
+            shortcut="J"
+            activeTool={activeTool}
+            onClick={() => setActiveTool('followme')}
+          />
+          {activeTool === 'followme' && (
+            <div className="text-xs text-blue-400/80 px-1">
+              Click a box profile, then place path points. Double-click to sweep.
+            </div>
+          )}
+
+          {/* Align to Face */}
           <button
-            className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-slate-800 border border-slate-700 text-slate-600 cursor-not-allowed transition-colors"
-            title="Select profile + path, then click"
-            disabled
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs border transition-colors ${
+              hasSelection
+                ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
+                : 'bg-slate-800/40 border-slate-800 text-slate-700 cursor-not-allowed'
+            }`}
+            disabled={!hasSelection}
+            title="Hover over a face, then click to align selected object flush to it"
+            onClick={() => viewportBus.emit({ type: 'alignToFace' })}
           >
-            <span className="w-5 text-center">↪</span>
-            <span className="flex-1">Follow Me</span>
-            <span className="text-slate-700 text-xs">soon</span>
+            <span className="w-5 text-center">⊥</span>
+            <span className="flex-1">Align to Face</span>
           </button>
         </div>
       </section>

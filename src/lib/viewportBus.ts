@@ -8,6 +8,7 @@ export type ViewportAction =
   | { type: 'captureHighRes'; scale: number; callback: (dataUrl: string) => void }
   | { type: 'exportSVG'; view: 'top' | 'front' | 'right' | 'all'; sceneName: string }
   | { type: 'enterXR'; mode: 'vr' | 'ar' }
+  | { type: 'alignToFace' }
 
 type Listener = (action: ViewportAction) => void
 const listeners = new Set<Listener>()

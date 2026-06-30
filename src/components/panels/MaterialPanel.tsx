@@ -64,6 +64,12 @@ export function MaterialPanel() {
   const [newTextureUrl, setNewTextureUrl] = useState<string | null>(null)
   const [newTextureThumb, setNewTextureThumb] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Smart material fields
+  const [newSku, setNewSku] = useState('')
+  const [newManufacturer, setNewManufacturer] = useState('')
+  const [newUnitCost, setNewUnitCost] = useState('')
+  const [newUom, setNewUom] = useState<'sqm' | 'unit' | 'linear_m'>('sqm')
+  const [newCoverage, setNewCoverage] = useState('1')
 
   const selIds = Array.from(selectedIds)
   const firstObj = selIds.length > 0 ? objects.get(selIds[0]) : undefined
@@ -95,6 +101,8 @@ export function MaterialPanel() {
   }
 
   const createCustomMaterial = () => {
+    const cost = parseFloat(newUnitCost)
+    const coverage = parseFloat(newCoverage)
     const preset: MaterialPreset = {
       id: `custom-${uuidv4()}`,
       name: newName || 'Custom Material',
@@ -105,6 +113,9 @@ export function MaterialPanel() {
       opacity: newOpacity,
       textureDataUrl: newTextureUrl ?? undefined,
       custom: true,
+      ...(newSku && { sku: newSku }),
+      ...(newManufacturer && { manufacturer: newManufacturer }),
+      ...(!isNaN(cost) && cost > 0 && { unitCost: cost, unitOfMeasure: newUom, coveragePerUnit: isNaN(coverage) ? 1 : coverage }),
     }
     saveCustomPreset(preset)
     const updated = loadCustomPresets()
@@ -117,6 +128,11 @@ export function MaterialPanel() {
     setNewMetalness(0)
     setNewTextureUrl(null)
     setNewTextureThumb(null)
+    setNewSku('')
+    setNewManufacturer('')
+    setNewUnitCost('')
+    setNewUom('sqm')
+    setNewCoverage('1')
     if (fileInputRef.current) fileInputRef.current.value = ''
     setActiveCategory('Custom')
   }
@@ -291,6 +307,30 @@ export function MaterialPanel() {
               </div>
               <input type="range" min={0} max={1} step={0.01} value={newMetalness}
                 className="w-full accent-blue-500" onChange={e => setNewMetalness(parseFloat(e.target.value))} />
+            </div>
+          </div>
+
+          {/* Smart material metadata */}
+          <div className="border-t border-slate-700 mt-2 pt-2 mb-2">
+            <div className="text-xs text-slate-500 mb-1.5 uppercase tracking-wider">Smart Material (optional)</div>
+            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+              <input className="prop-input text-xs" placeholder="SKU / Product #"
+                value={newSku} onChange={e => setNewSku(e.target.value)} />
+              <input className="prop-input text-xs" placeholder="Manufacturer"
+                value={newManufacturer} onChange={e => setNewManufacturer(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <input className="prop-input text-xs col-span-1" placeholder="$/unit"
+                type="number" min={0} step={0.01} value={newUnitCost} onChange={e => setNewUnitCost(e.target.value)} />
+              <select className="prop-input text-xs col-span-1"
+                value={newUom} onChange={e => setNewUom(e.target.value as typeof newUom)}>
+                <option value="sqm">per m²</option>
+                <option value="unit">per unit</option>
+                <option value="linear_m">per lm</option>
+              </select>
+              <input className="prop-input text-xs col-span-1" placeholder="m²/unit"
+                type="number" min={0.01} step={0.01} value={newCoverage} onChange={e => setNewCoverage(e.target.value)}
+                title="Coverage per unit (e.g. tile 0.36 m² each)" />
             </div>
           </div>
 

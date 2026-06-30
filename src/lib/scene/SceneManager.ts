@@ -41,6 +41,8 @@ export type SceneManagerCallbacks = {
   onProtractorComplete?: (angle: number, points: [Vec3, Vec3, Vec3]) => void
   onErase?: (id: string) => void
   onDrawPoint?: (pts: Vec3[]) => void
+  onFollowMeCommit?: (profileId: string, pathPoints: Vec3[]) => void
+  onFollowMePoint?: (profileId: string | null, pts: Vec3[]) => void
 }
 
 interface FaceInfo {
@@ -110,6 +112,23 @@ export class SceneManager {
   // Measure state
   private measureClickA: THREE.Vector3 | null = null
   private protractorClicks: THREE.Vector3[] = []
+
+  // Draw-on-face state
+  private drawFacePlane: THREE.Plane | null = null
+
+  // Follow Me state
+  private followMeProfileId: string | null = null
+  private followMePoints: THREE.Vector3[] = []
+
+  // Face-hover tracking (for face-flush snap / align)
+  private lastHoveredFace: { point: THREE.Vector3; normal: THREE.Vector3 } | null = null
+
+  // First-person walk
+  private fpActive = false
+  private fpYaw = 0
+  private fpPitch = 0
+  private fpKeys = new Set<string>()
+  private fpPointerLocked = false
 
   // Environment
   private _envTexture: THREE.Texture | null = null
@@ -295,10 +314,29 @@ export class SceneManager {
   }
 
   startLoop() {
+    let prev = performance.now()
     const loop = () => {
       if (this._destroyed) return
       this.frameId = requestAnimationFrame(loop)
-      this.orbitControls.update()
+
+      const now = performance.now()
+      const dt = Math.min((now - prev) / 1000, 0.1)
+      prev = now
+
+      if (this.fpActive && this.fpPointerLocked) {
+        const speed = 4
+        const forward = new THREE.Vector3(-Math.sin(this.fpYaw), 0, -Math.cos(this.fpYaw))
+        const right = new THREE.Vector3(Math.cos(this.fpYaw), 0, -Math.sin(this.fpYaw))
+        if (this.fpKeys.has('w') || this.fpKeys.has('arrowup')) this.perspCamera.position.addScaledVector(forward, speed * dt)
+        if (this.fpKeys.has('s') || this.fpKeys.has('arrowdown')) this.perspCamera.position.addScaledVector(forward, -speed * dt)
+        if (this.fpKeys.has('a') || this.fpKeys.has('arrowleft')) this.perspCamera.position.addScaledVector(right, -speed * dt)
+        if (this.fpKeys.has('d') || this.fpKeys.has('arrowright')) this.perspCamera.position.addScaledVector(right, speed * dt)
+        if (this.fpKeys.has('q')) this.perspCamera.position.y += speed * dt * 0.5
+        if (this.fpKeys.has('e')) this.perspCamera.position.y -= speed * dt * 0.5
+      } else {
+        this.orbitControls.update()
+      }
+
       if (this.postProcessor) {
         this.postProcessor.render()
       } else {
@@ -317,6 +355,7 @@ export class SceneManager {
     this._envTexture?.dispose()
     if (this.scene.background instanceof THREE.CanvasTexture) this.scene.background.dispose()
     this.renderer.dispose()
+    if (this.fpActive) this.disableFirstPerson()
     this.labelRenderer?.domElement.remove()
     this.canvas.removeEventListener('pointerdown', this.onPointerDown)
     this.canvas.removeEventListener('pointermove', this.onPointerMove)
@@ -331,13 +370,23 @@ export class SceneManager {
   }
 
   setTool(mode: ToolMode) {
-    // Clear draw/measure state on tool change
+    // Handle walk mode transitions
+    if (mode === 'walk' && this.toolMode !== 'walk') {
+      this.enableFirstPerson()
+    } else if (this.toolMode === 'walk' && mode !== 'walk') {
+      this.disableFirstPerson()
+    }
+
+    // Clear draw/measure/followme state on tool change
     if (this.toolMode !== mode) {
       this.drawEngine.cancel()
       this.measureEngine.clear()
       this.inferenceEngine.hide()
       this.measureClickA = null
       this.protractorClicks = []
+      this.drawFacePlane = null
+      this.followMeProfileId = null
+      this.followMePoints = []
     }
 
     this.toolMode = mode
@@ -353,18 +402,89 @@ export class SceneManager {
       this.canvas.style.cursor = 'cell'
     } else if (mode === 'select') {
       this.canvas.style.cursor = 'crosshair'
-    } else if (mode === 'draw') {
+    } else if (mode === 'draw' || mode === 'followme') {
       this.canvas.style.cursor = 'crosshair'
     } else if (mode === 'measure' || mode === 'protractor') {
       this.canvas.style.cursor = 'crosshair'
     } else if (mode === 'eraser') {
       this.canvas.style.cursor = 'cell'
+    } else if (mode === 'walk') {
+      this.canvas.style.cursor = 'none'
     } else {
       this.canvas.style.cursor = 'default'
     }
 
     this.clearFaceHighlight()
     this.pp.active = false
+  }
+
+  // ─── First-person walk ───────────────────────────────────────────────
+
+  private _onFPMouseMove = (e: MouseEvent) => {
+    if (!this.fpPointerLocked) return
+    const sensitivity = 0.002
+    this.fpYaw -= e.movementX * sensitivity
+    this.fpPitch -= e.movementY * sensitivity
+    this.fpPitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, this.fpPitch))
+    // Apply rotation order: yaw around world Y, pitch around local X
+    this.perspCamera.rotation.order = 'YXZ'
+    this.perspCamera.rotation.y = this.fpYaw
+    this.perspCamera.rotation.x = this.fpPitch
+  }
+
+  private _onFPKeyDown = (e: KeyboardEvent) => {
+    this.fpKeys.add(e.key.toLowerCase())
+    if (e.key === 'Escape') this.setTool('select')
+  }
+
+  private _onFPKeyUp = (e: KeyboardEvent) => {
+    this.fpKeys.delete(e.key.toLowerCase())
+  }
+
+  private _onPointerLockChange = () => {
+    this.fpPointerLocked = document.pointerLockElement === this.canvas
+  }
+
+  private _requestPointerLock = () => {
+    this.canvas.requestPointerLock()
+  }
+
+  enableFirstPerson() {
+    this.orbitControls.enabled = false
+    this.fpActive = true
+    this.fpPointerLocked = false
+    // Set initial yaw from current camera position
+    const cam = this.perspCamera
+    this.fpYaw = Math.atan2(-cam.getWorldDirection(new THREE.Vector3()).x, -cam.getWorldDirection(new THREE.Vector3()).z)
+    this.fpPitch = 0
+    cam.rotation.order = 'YXZ'
+    cam.rotation.y = this.fpYaw
+    cam.rotation.x = this.fpPitch
+
+    this.canvas.addEventListener('click', this._requestPointerLock)
+    document.addEventListener('pointerlockchange', this._onPointerLockChange)
+    document.addEventListener('mousemove', this._onFPMouseMove)
+    document.addEventListener('keydown', this._onFPKeyDown)
+    document.addEventListener('keyup', this._onFPKeyUp)
+  }
+
+  disableFirstPerson() {
+    if (document.pointerLockElement === this.canvas) document.exitPointerLock()
+    this.orbitControls.enabled = true
+    this.fpActive = false
+    this.fpPointerLocked = false
+    this.fpKeys.clear()
+
+    this.canvas.removeEventListener('click', this._requestPointerLock)
+    document.removeEventListener('pointerlockchange', this._onPointerLockChange)
+    document.removeEventListener('mousemove', this._onFPMouseMove)
+    document.removeEventListener('keydown', this._onFPKeyDown)
+    document.removeEventListener('keyup', this._onFPKeyUp)
+  }
+
+  /** Returns the last face point + normal (for Align to Face) */
+  getLastHoveredFace() {
+    return this.lastHoveredFace
   }
 
   syncObjects(
@@ -998,14 +1118,35 @@ export class SceneManager {
       return
     }
 
-    // Draw tool
+    // Draw tool (supports drawing on faces)
     if (this.toolMode === 'draw') {
-      const pt = this.getGroundPoint()
+      // Try mesh face first, then fall back to ground
+      const meshHits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      let pt: THREE.Vector3 | null = null
+
+      if (meshHits.length > 0 && meshHits[0].face) {
+        const hit = meshHits[0]
+        // Lock to face plane for consistency
+        if (!this.drawFacePlane) {
+          const faceNorm = hit.face!.normal.clone()
+            .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+            .normalize()
+          this.drawFacePlane = new THREE.Plane().setFromNormalAndCoplanarPoint(faceNorm, hit.point)
+        }
+        pt = hit.point.clone()
+      } else if (this.drawFacePlane) {
+        // Continue on locked plane
+        const candidate = new THREE.Vector3()
+        this.raycaster.ray.intersectPlane(this.drawFacePlane, candidate)
+        if (candidate.lengthSq() > 0) pt = candidate
+      } else {
+        pt = this.getGroundPoint()
+      }
+
       if (pt) {
-        // Double-click = commit
         if (e.detail >= 2 && this.drawEngine.getPoints().length >= 2) {
-          // Add last point then commit
           const segments = this.drawEngine.commit()
+          this.drawFacePlane = null
           this.callbacks.onDrawPoint?.(
             segments.map(seg => seg[0]).concat(segments.length > 0 ? [segments[segments.length - 1][1]] : []),
           )
@@ -1013,6 +1154,37 @@ export class SceneManager {
           this.drawEngine.addPoint(pt)
           const pts = this.drawEngine.getPoints()
           this.callbacks.onDrawPoint?.(pts.map(p => ({ x: p.x, y: p.y, z: p.z })))
+          this.inferenceEngine.showFromPoint({ x: pt.x, y: pt.y, z: pt.z })
+        }
+      }
+      return
+    }
+
+    // Follow Me tool: first click selects profile, subsequent clicks add path points
+    if (this.toolMode === 'followme') {
+      if (!this.followMeProfileId) {
+        // Select profile object
+        const hits = this.raycaster.intersectObjects(this.getMeshes(), false)
+        if (hits.length > 0) {
+          this.followMeProfileId = hits[0].object.userData.objectId as string
+          this.callbacks.onFollowMePoint?.(this.followMeProfileId, [])
+        }
+        return
+      }
+      // Add path point
+      const pt = this.getGroundPoint()
+      if (pt) {
+        if (e.detail >= 2 && this.followMePoints.length >= 1) {
+          // Commit
+          const pts = this.followMePoints.map(p => ({ x: p.x, y: p.y, z: p.z }))
+          this.callbacks.onFollowMeCommit?.(this.followMeProfileId, pts)
+          this.followMeProfileId = null
+          this.followMePoints = []
+          this.callbacks.onFollowMePoint?.(null, [])
+        } else {
+          this.followMePoints.push(pt.clone())
+          const pts = this.followMePoints.map(p => ({ x: p.x, y: p.y, z: p.z }))
+          this.callbacks.onFollowMePoint?.(this.followMeProfileId, pts)
           this.inferenceEngine.showFromPoint({ x: pt.x, y: pt.y, z: pt.z })
         }
       }
@@ -1156,9 +1328,28 @@ export class SceneManager {
       this.hideSnapIndicator()
     }
 
-    // Draw tool preview
+    // Track hovered face for face-flush alignment
+    if (this.toolMode === 'select' || this.toolMode === 'move') {
+      const meshHits = this.raycaster.intersectObjects(this.getMeshes(), false)
+      if (meshHits.length > 0 && meshHits[0].face) {
+        const hit = meshHits[0]
+        const normal = hit.face!.normal.clone()
+          .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+          .normalize()
+        this.lastHoveredFace = { point: hit.point.clone(), normal }
+      }
+    }
+
+    // Draw tool preview (face-aware)
     if (this.toolMode === 'draw' && this.drawEngine.getPoints().length > 0) {
-      const pt = this.getGroundPoint()
+      let pt: THREE.Vector3 | null = null
+      if (this.drawFacePlane) {
+        const candidate = new THREE.Vector3()
+        this.raycaster.ray.intersectPlane(this.drawFacePlane, candidate)
+        if (candidate.lengthSq() > 0) pt = candidate
+      } else {
+        pt = this.getGroundPoint()
+      }
       if (pt) {
         this.drawEngine.updatePreview(pt)
         this.inferenceEngine.showFromPoint({ x: pt.x, y: pt.y, z: pt.z })

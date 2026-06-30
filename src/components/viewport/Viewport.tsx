@@ -25,6 +25,7 @@ export function Viewport() {
   const [measureInfo, setMeasureInfo] = useState<{ distance: number } | null>(null)
   const [protractorInfo, setProtractorInfo] = useState<{ angle: number } | null>(null)
 
+  const [followMeState, setFollowMeState] = useState<{ profileId: string | null; pts: number }>({ profileId: null, pts: 0 })
   const store = useSceneStore()
   const toolStore = useToolStore()
   const publishCursor = useCollabStore(s => s.publishCursor)
@@ -135,6 +136,15 @@ export function Viewport() {
     setDrawHint(pts.length)
   }, [setDrawPoints])
 
+  const onFollowMeCommit = useCallback((profileId: string, pathPoints: Vec3[]) => {
+    store.sweepFollowMe(profileId, pathPoints)
+    toolStore.setActiveTool('select')
+  }, [store, toolStore])
+
+  const onFollowMePoint = useCallback((profileId: string | null, pts: Vec3[]) => {
+    setFollowMeState({ profileId, pts: pts.length })
+  }, [])
+
   // Init SceneManager
   useEffect(() => {
     const canvas = canvasRef.current
@@ -143,6 +153,7 @@ export function Viewport() {
       onSelect, onMouseMove3D, onContextMenu,
       onTransformChange, onPushPullProgress, onPushPullCommit, onBoxSelect,
       onMeasureComplete, onProtractorComplete, onErase, onDrawPoint,
+      onFollowMeCommit, onFollowMePoint,
     })
     managerRef.current = mgr
 
@@ -296,10 +307,28 @@ export function Viewport() {
         case 'enterXR':
           mgr.enterXR(action.mode)
           break
+        case 'alignToFace': {
+          const face = mgr.getLastHoveredFace()
+          if (!face) break
+          const ids = Array.from(store.selectedIds)
+          if (ids.length === 0) break
+          ids.forEach(id => {
+            const obj = store.objects.get(id)
+            if (!obj) return
+            // Move object so its bottom sits on the hovered face plane
+            const newPos = {
+              x: face.point.x,
+              y: face.point.y,
+              z: face.point.z,
+            }
+            store.updateObject(id, { position: newPos })
+          })
+          break
+        }
       }
     })
     return off
-  }, [addSnapshot, store.snapshots, store.objects])
+  }, [addSnapshot, store.snapshots, store.objects, store.selectedIds, store.updateObject])
 
   // Esc key handler to cancel draw/clear measure
   useEffect(() => {
@@ -463,6 +492,25 @@ export function Viewport() {
       {activeTool === 'eraser' && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded bg-black/60 text-slate-300 pointer-events-none">
           Click an object to erase it
+        </div>
+      )}
+
+      {/* Walk mode hint */}
+      {activeTool === 'walk' && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1.5 rounded bg-black/70 text-slate-200 pointer-events-none">
+          Click viewport to lock cursor · WASD to walk · Q/E up/down · Esc to exit
+        </div>
+      )}
+
+      {/* Follow Me hint */}
+      {activeTool === 'followme' && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-xs px-3 py-1.5 rounded bg-black/70 text-slate-200 pointer-events-none">
+          {!followMeState.profileId
+            ? 'Click a box to use as sweep profile'
+            : followMeState.pts === 0
+              ? 'Profile selected — click to place path points · Double-click to sweep'
+              : `${followMeState.pts} path point${followMeState.pts !== 1 ? 's' : ''} — Double-click to commit sweep`
+          }
         </div>
       )}
 
