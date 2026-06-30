@@ -69,6 +69,7 @@ function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | Co
 }
 
 interface SceneState {
+  sceneId: string
   sceneName: string
   isDirty: boolean
   objects: Map<string, SceneObject>
@@ -221,6 +222,7 @@ function applyDimExprs(objects: Map<string, SceneObject>, ctx: Record<string, nu
 }
 
 export const useSceneStore = create<SceneState>((set, get) => ({
+  sceneId: uuidv4(),
   sceneName: 'Untitled',
   isDirty: false,
   objects: new Map(),
@@ -838,6 +840,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     componentCounter = 1
     paramCounter = 1
     set({
+      sceneId: uuidv4(),
       sceneName: 'Untitled',
       isDirty: false,
       objects: new Map(),
