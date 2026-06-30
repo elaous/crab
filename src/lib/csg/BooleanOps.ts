@@ -12,7 +12,7 @@ function buildBrush(obj: SceneObject): Brush {
   if (obj.type === 'csg' && obj.csgData) {
     geo = deserializeGeometry(obj.csgData)
   } else {
-    geo = createGeometry(obj.type as Exclude<typeof obj.type, 'csg' | 'component-instance'>, obj.dimensions as never)
+    geo = createGeometry(obj.type as Exclude<typeof obj.type, 'csg' | 'component-instance' | 'line' | 'imported'>, obj.dimensions as never)
   }
 
   const brush = new Brush(

@@ -10,7 +10,9 @@ import { viewportBus } from '../../lib/viewportBus'
 import { useUIStore } from '../../store/uiStore'
 import { PreferencesModal } from '../overlay/PreferencesModal'
 import { ScenePickerModal } from '../overlay/ScenePickerModal'
+import { ShareModal } from '../overlay/ShareModal'
 import { storage, storageMode } from '../../lib/storage'
+import { importModel, openModelFilePicker } from '../../lib/io/modelImporter'
 import type { BooleanOp } from '../../types'
 import type { SceneEntry } from '../../lib/storage/types'
 
@@ -27,6 +29,7 @@ export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [collabOpen, setCollabOpen] = useState(false)
   const [scenePickerOpen, setScenePickerOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [roomInput, setRoomInput] = useState(() => randomRoomId())
   const { setShortcutsOpen, setOnboardingOpen, prefsOpen, setPrefsOpen } = useUIStore()
   const barRef = useRef<HTMLDivElement>(null)
@@ -109,6 +112,19 @@ export function MenuBar() {
     close()
   }
 
+  const handleImport = async () => {
+    close()
+    try {
+      const file = await openModelFilePicker()
+      if (!file) return
+      const objects = await importModel(file)
+      if (objects.length === 0) { alert('No geometry found in file.'); return }
+      store.importObjects(objects)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   const handleBoolean = (op: BooleanOp) => {
     const ids = Array.from(store.selectedIds)
     if (ids.length !== 2) return
@@ -129,8 +145,11 @@ export function MenuBar() {
       id: 'file', label: 'File', items: [
         { label: 'New', shortcut: 'Ctrl+N', action: handleNew },
         { label: 'Open…', shortcut: 'Ctrl+O', action: handleOpen },
+        { label: 'Import 3D Model / SketchUp…', action: handleImport },
         { type: 'sep' as const },
         { label: 'Save', shortcut: 'Ctrl+S', action: handleSave },
+        { label: 'Share…', action: () => { setShareOpen(true); close() } },
+        { type: 'sep' as const },
         { label: 'Export STL', action: handleExportSTL },
         { label: 'Export GLTF', action: handleExportGLTF },
         { label: 'Export OBJ', action: handleExportOBJ },
@@ -312,6 +331,9 @@ export function MenuBar() {
           onClose={() => setScenePickerOpen(false)}
         />
       )}
+
+      {/* Share modal */}
+      {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
 
 
       {/* Collab modal */}

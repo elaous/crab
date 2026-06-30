@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSceneStore } from '../../store/sceneStore'
 import { evaluateFormula } from '../../lib/formula/evaluator'
-import type { SceneObject, BoxDims, SphereDims, CylinderDims, ConeDims, Vec3 } from '../../types'
+import type { SceneObject, BoxDims, SphereDims, CylinderDims, ConeDims, LineDims, LineStyle, Vec3 } from '../../types'
 
 function DimInput({
   dimKey, value, expression, paramCtx, objectId,
@@ -164,7 +164,57 @@ function DimensionsEditor({ obj }: { obj: SceneObject }) {
     )
   }
 
+  if (obj.type === 'line') {
+    const d = obj.dimensions as LineDims
+    return (
+      <div className="mb-2">
+        <div className="text-xs text-slate-500 mb-1">Dimensions</div>
+        <div>
+          <div className="text-xs text-slate-600 mb-0.5">Length</div>
+          <DimInput dimKey="length" value={d.length} expression={exprs['length']} paramCtx={paramCtx} objectId={obj.id} />
+        </div>
+      </div>
+    )
+  }
+
   return null
+}
+
+const LINE_STYLES: LineStyle[] = ['solid', 'dashed', 'dotted', 'dot-dash', 'double']
+
+function LineStyleEditor({ obj }: { obj: SceneObject }) {
+  const { updateObject } = useSceneStore()
+  if (obj.type !== 'line') return null
+  return (
+    <div className="mb-3">
+      <div className="text-xs text-slate-500 mb-1">Line Style</div>
+      <div className="grid grid-cols-3 gap-1 mb-2">
+        {LINE_STYLES.map(style => (
+          <button
+            key={style}
+            className={`text-xs py-1 px-1 rounded border transition-colors ${
+              (obj.lineStyle ?? 'solid') === style
+                ? 'bg-blue-700 border-blue-600 text-white'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+            }`}
+            onClick={() => updateObject(obj.id, { lineStyle: style })}
+          >
+            {style}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-500">Width</span>
+        <input
+          type="number"
+          min={1} max={10} step={1}
+          className="prop-input flex-1 text-xs"
+          value={obj.lineWidth ?? 1}
+          onChange={e => updateObject(obj.id, { lineWidth: parseInt(e.target.value) || 1 })}
+        />
+      </div>
+    </div>
+  )
 }
 
 export function PropertiesPanel() {
@@ -248,6 +298,14 @@ export function PropertiesPanel() {
             ))}
           </select>
         </div>
+
+        {/* Line style (only for line objects) */}
+        {obj.type === 'line' && (
+          <>
+            <div className="border-t border-slate-700 my-2" />
+            <LineStyleEditor obj={obj} />
+          </>
+        )}
 
         <div className="border-t border-slate-700 my-2" />
 

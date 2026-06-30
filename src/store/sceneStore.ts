@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   SceneObject, Layer, CameraSnapshot, SceneSettings,
-  PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims,
+  PrimitiveType, Vec3, BoxDims, SphereDims, CylinderDims, ConeDims, LineDims,
   ViewMode, ViewPreset, MousePosition3D, BooleanOp, CSGGeometryData,
   Annotation, Assembly, ComponentDef, Parameter, SceneVersion,
 } from '../types'
@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: SceneSettings = {
   sectionEnabled: false,
   sectionAxis: 'y' as const,
   sectionOffset: 0,
+  sectionAngle: 0,
   toneMapping: 'aces' as const,
   exposure: 1.0,
   bloomEnabled: false,
@@ -57,14 +58,16 @@ const LAYER_COLORS = [
   '#fb7185', '#38bdf8', '#4ade80', '#facc15', '#c084fc',
 ]
 
-function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | ConeDims | Record<string, never> {
+function makeDims(type: PrimitiveType): BoxDims | SphereDims | CylinderDims | ConeDims | LineDims | Record<string, never> {
   switch (type) {
     case 'box': return { width: 1, height: 1, depth: 1 }
     case 'sphere': return { radius: 0.5 }
     case 'cylinder': return { radius: 0.5, height: 1 }
     case 'cone': return { radius: 0.5, height: 1 }
+    case 'line': return { length: 1 }
     case 'csg': return {}
     case 'component-instance': return {}
+    case 'imported': return {}
   }
 }
 
@@ -169,6 +172,11 @@ interface SceneState {
   setDirty: (v: boolean) => void
   newScene: () => void
   loadScene: (objects: SceneObject[], layers: Layer[], layerOrder: string[], settings: SceneSettings, annotations?: Annotation[], assemblies?: Assembly[], componentDefs?: ComponentDef[], parameters?: Parameter[]) => void
+
+  // Mirror / Array / Import
+  mirrorObjects: (ids: string[], axis: 'x' | 'y' | 'z') => void
+  arrayObjects: (ids: string[], count: number, spacing: Vec3) => string[]
+  importObjects: (objs: SceneObject[]) => void
 
   // Remote collaboration sync — bypass history and collab echo
   _remoteSetObject: (id: string, obj: SceneObject) => void
@@ -996,6 +1004,71 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set(state => ({
       versions: state.versions.map(v => v.id === id ? { ...v, name } : v),
     }))
+  },
+
+  mirrorObjects: (ids, axis) => {
+    get().pushHistory()
+    set(state => {
+      const objects = new Map(state.objects)
+      ids.forEach(id => {
+        const obj = objects.get(id)
+        if (!obj) return
+        const mirrored: SceneObject = {
+          ...obj,
+          id: uuidv4(),
+          name: obj.name + ' (mirrored)',
+          position: {
+            ...obj.position,
+            [axis]: -obj.position[axis],
+          },
+          rotation: {
+            ...obj.rotation,
+            x: axis !== 'x' ? -obj.rotation.x : obj.rotation.x,
+            y: axis !== 'y' ? -obj.rotation.y : obj.rotation.y,
+            z: axis !== 'z' ? -obj.rotation.z : obj.rotation.z,
+          },
+        }
+        objects.set(mirrored.id, mirrored)
+      })
+      return { objects, isDirty: true }
+    })
+  },
+
+  arrayObjects: (ids, count, spacing) => {
+    get().pushHistory()
+    const newIds: string[] = []
+    set(state => {
+      const objects = new Map(state.objects)
+      for (let i = 1; i <= count; i++) {
+        ids.forEach(id => {
+          const obj = objects.get(id)
+          if (!obj) return
+          const newId = uuidv4()
+          newIds.push(newId)
+          objects.set(newId, {
+            ...obj,
+            id: newId,
+            name: `${obj.name} [${i}]`,
+            position: {
+              x: obj.position.x + spacing.x * i,
+              y: obj.position.y + spacing.y * i,
+              z: obj.position.z + spacing.z * i,
+            },
+          })
+        })
+      }
+      return { objects, isDirty: true }
+    })
+    return newIds
+  },
+
+  importObjects: (objs) => {
+    get().pushHistory()
+    set(state => {
+      const objects = new Map(state.objects)
+      objs.forEach(obj => objects.set(obj.id, obj))
+      return { objects, isDirty: true }
+    })
   },
 
   _remoteSetObject: (id, obj) => set(state => {

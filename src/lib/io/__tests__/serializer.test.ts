@@ -9,7 +9,7 @@ const DEFAULT_SETTINGS: SceneSettings = {
   displayMode: 'shaded', shadowsEnabled: true,
   outlineEnabled: true, sobelEnabled: false, aoEnabled: false,
   sunAzimuth: 45, sunElevation: 60, sunIntensity: 1.2,
-  sectionEnabled: false, sectionAxis: 'y', sectionOffset: 0,
+  sectionEnabled: false, sectionAxis: 'y', sectionOffset: 0, sectionAngle: 0,
   toneMapping: 'aces', exposure: 1.0,
   bloomEnabled: false, bloomStrength: 0.4, bloomRadius: 0.4, bloomThreshold: 0.85,
   envPreset: 'studio', envIntensity: 1.0, bgColor: '#16213e',
